@@ -22,9 +22,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-zinc-200 dark:border-zinc-800">
+      <header className="border-b border-zinc-200/70 bg-white/60 backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
+          <Link href="/dashboard" className="text-lg font-semibold tracking-tight text-gradient-brand">
             Ztution
           </Link>
           <div className="flex items-center gap-4">

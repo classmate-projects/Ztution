@@ -16,9 +16,9 @@ export default async function BillingPage({ searchParams }: Props) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-zinc-200 dark:border-zinc-800">
+      <header className="border-b border-zinc-200/70 bg-white/60 backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
-          <span className="text-lg font-semibold tracking-tight">Ztution</span>
+          <span className="text-lg font-semibold tracking-tight text-gradient-brand">Ztution</span>
           <SignOutButton />
         </div>
       </header>
