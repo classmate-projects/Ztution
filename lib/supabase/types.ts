@@ -9,7 +9,20 @@ export interface UserRow {
   password_hash: string;
   name: string;
   role: Role;
+  stripe_customer_id: string | null;
   created_at: string;
+}
+
+export interface SubscriptionRow {
+  id: string;
+  student_id: string;
+  stripe_customer_id: string;
+  stripe_subscription_id: string;
+  stripe_price_id: string | null;
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  updated_at: string;
 }
 
 export interface ClassSessionRow {

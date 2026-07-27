@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Card, ErrorBanner, Field, Input } from "@/components/ui";
+import Link from "next/link";
+import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input } from "@/components/ui";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
 
@@ -149,13 +150,21 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
                   </Button>
                 )}
                 {session.status === "live" && (
-                  <Button
-                    variant="danger"
-                    disabled={actioningId === session.id}
-                    onClick={() => transition(session.id, "end")}
-                  >
-                    End
-                  </Button>
+                  <>
+                    <Link
+                      href={`/dashboard/classes/${classId}/sessions/${session.id}/call`}
+                      className={buttonClasses("primary")}
+                    >
+                      Enter Call
+                    </Link>
+                    <Button
+                      variant="danger"
+                      disabled={actioningId === session.id}
+                      onClick={() => transition(session.id, "end")}
+                    >
+                      End
+                    </Button>
+                  </>
                 )}
               </div>
             </Card>

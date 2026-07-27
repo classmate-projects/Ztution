@@ -25,7 +25,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/dashboard") && !hasSession) {
+  if ((pathname.startsWith("/dashboard") || pathname.startsWith("/billing")) && !hasSession) {
     return NextResponse.redirect(new URL("/signin", request.url));
   }
 
@@ -33,5 +33,11 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/((?!auth/login|auth/register).*)", "/dashboard/:path*"],
+  // /api/webhooks/* is called directly by Stripe (no session cookie/header
+  // exists on those requests) — its own signature check is the real guard.
+  matcher: [
+    "/api/((?!auth/login|auth/register|webhooks/).*)",
+    "/dashboard/:path*",
+    "/billing/:path*",
+  ],
 };

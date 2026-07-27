@@ -111,6 +111,30 @@ create table if not exists submissions (
 create index if not exists submissions_assignment_id_idx on submissions (assignment_id);
 create index if not exists submissions_student_id_idx on submissions (student_id);
 
+alter table users add column if not exists stripe_customer_id text;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_stripe_customer_id_key') then
+    alter table users add constraint users_stripe_customer_id_key unique (stripe_customer_id);
+  end if;
+end $$;
+
+-- One row per student reflecting their *current* Stripe subscription state
+-- (kept in sync by the /api/webhooks/stripe handler) — not a payment history
+-- log. `status` mirrors Stripe's own subscription status strings directly
+-- ('active', 'trialing', 'past_due', 'canceled', 'unpaid', 'incomplete', ...).
+create table if not exists subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null unique references users (id) on delete cascade,
+  stripe_customer_id text not null,
+  stripe_subscription_id text not null,
+  stripe_price_id text,
+  status text not null,
+  current_period_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
 -- Private bucket for study material files. All reads/writes go through the
 -- server (service-role key) via our API routes, never directly from the
 -- browser, so no storage RLS policies are needed here.

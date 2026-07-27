@@ -29,7 +29,7 @@ export const PERMISSIONS = {
     "session:create",
     "session:manage",
   ],
-  student: ["class:join", "material:view", "assignment:submit"],
+  student: ["class:join", "material:view", "assignment:submit", "billing:manage"],
 } as const satisfies Record<Role, readonly string[]>;
 
 export type Permission = (typeof PERMISSIONS)[Role][number];

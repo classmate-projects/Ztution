@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
+import { getSubscriptionStatus } from "@/lib/billing";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/dashboard";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/signin");
+
+  if (session.role === "student") {
+    const { active } = await getSubscriptionStatus(session.userId);
+    if (!active) redirect("/billing");
+  }
 
   const { data: profile } = await supabaseAdmin
     .from("users")

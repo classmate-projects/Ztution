@@ -1,4 +1,5 @@
-import { Badge, Card } from "@/components/ui";
+import Link from "next/link";
+import { Badge, buttonClasses, Card } from "@/components/ui";
 import { JoinClassButton } from "@/components/dashboard";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, ClassStudentRow, MaterialRow } from "@/lib/supabase/types";
@@ -40,14 +41,22 @@ export function StudentClassView({ klass, sessions, materials, enrollment }: Pro
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge status={session.status} />
-                  {session.status === "live" && (
-                    <span
-                      title="Live calling isn't available yet"
-                      className="cursor-not-allowed rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-400 dark:bg-zinc-800"
-                    >
-                      Join Call — coming soon
-                    </span>
-                  )}
+                  {session.status === "live" &&
+                    (enrollment.status === "active" ? (
+                      <Link
+                        href={`/dashboard/classes/${klass.id}/sessions/${session.id}/call`}
+                        className={buttonClasses("primary")}
+                      >
+                        Join Call
+                      </Link>
+                    ) : (
+                      <span
+                        title="Join the class before you can join a live call"
+                        className="cursor-not-allowed rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-400 dark:bg-zinc-800"
+                      >
+                        Join Call
+                      </span>
+                    ))}
                 </div>
               </Card>
             ))}

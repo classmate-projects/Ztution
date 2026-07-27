@@ -9,6 +9,7 @@ export function formatDateTime(iso: string | null): string {
 export function formatFileSize(bytes: number | null): string {
   if (!bytes) return "";
   const kb = bytes / 1024;
-  if (kb < 1024) return `${Math.round(kb)} KB`;
+  if (kb < 1) return `${bytes} B`;
+  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
 }
