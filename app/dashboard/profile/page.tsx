@@ -15,7 +15,7 @@ export default async function ProfilePage() {
   if (!profile) redirect("/dashboard");
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Profile</h1>
       <ProfileForm
         initialName={profile.name}

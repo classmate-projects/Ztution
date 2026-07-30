@@ -31,7 +31,7 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   );
 }
 
-const fieldInputClasses =
+export const fieldInputClasses =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
 export function Field({

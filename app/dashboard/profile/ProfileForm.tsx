@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, ErrorBanner, Field, Input } from "@/components/ui";
+import { PasswordInput } from "@/components/password-input";
 import { initials } from "@/components/dashboard";
 import type { Role } from "@/lib/supabase/types";
 
@@ -103,72 +104,71 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
         </div>
       </div>
 
-      <Card>
-        <form className="flex flex-col gap-4" onSubmit={saveProfile}>
-          <h2 className="text-base font-semibold">Profile details</h2>
-          <ErrorBanner message={profileError} />
-          {profileSuccess && <div className={SUCCESS_BANNER_CLASSES}>Profile updated.</div>}
-          <Field label="Name" htmlFor="profile-name">
-            <Input id="profile-name" required value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label="Username" htmlFor="profile-username">
-            <Input
-              id="profile-username"
-              required
-              pattern="[a-zA-Z0-9_]{3,32}"
-              title="3-32 characters: letters, numbers, and underscores"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </Field>
-          <Button type="submit" disabled={savingProfile} className="self-start">
-            {savingProfile ? "Saving…" : "Save changes"}
-          </Button>
-        </form>
-      </Card>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
+        <Card className="lg:flex-1">
+          <form className="flex h-full flex-col gap-4" onSubmit={saveProfile}>
+            <h2 className="text-base font-semibold">Profile details</h2>
+            <ErrorBanner message={profileError} />
+            {profileSuccess && <div className={SUCCESS_BANNER_CLASSES}>Profile updated.</div>}
+            <Field label="Name" htmlFor="profile-name">
+              <Input id="profile-name" required value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field label="Username" htmlFor="profile-username">
+              <Input
+                id="profile-username"
+                required
+                pattern="[a-zA-Z0-9_]{3,32}"
+                title="3-32 characters: letters, numbers, and underscores"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </Field>
+            <Button type="submit" disabled={savingProfile} className="mt-auto self-start">
+              {savingProfile ? "Saving…" : "Save changes"}
+            </Button>
+          </form>
+        </Card>
 
-      <Card>
-        <form className="flex flex-col gap-4" onSubmit={savePassword}>
-          <h2 className="text-base font-semibold">Change password</h2>
-          <ErrorBanner message={passwordError} />
-          {passwordSuccess && <div className={SUCCESS_BANNER_CLASSES}>Password updated.</div>}
-          <Field label="Current password" htmlFor="current-password">
-            <Input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-          </Field>
-          <Field label="New password" htmlFor="new-password">
-            <Input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </Field>
-          <Field label="Confirm new password" htmlFor="confirm-password">
-            <Input
-              id="confirm-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-          </Field>
-          <Button type="submit" disabled={savingPassword} className="self-start">
-            {savingPassword ? "Updating…" : "Update password"}
-          </Button>
-        </form>
-      </Card>
+        <Card className="lg:flex-1">
+          <form className="flex h-full flex-col gap-4" onSubmit={savePassword}>
+            <h2 className="text-base font-semibold">Change password</h2>
+            <ErrorBanner message={passwordError} />
+            {passwordSuccess && <div className={SUCCESS_BANNER_CLASSES}>Password updated.</div>}
+            <Field label="Current password" htmlFor="current-password">
+              <PasswordInput
+                id="current-password"
+                autoComplete="current-password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </Field>
+            <Field label="New password" htmlFor="new-password">
+              <PasswordInput
+                id="new-password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </Field>
+            <Field label="Confirm new password" htmlFor="confirm-password">
+              <PasswordInput
+                id="confirm-password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </Field>
+            <Button type="submit" disabled={savingPassword} className="mt-auto self-start">
+              {savingPassword ? "Updating…" : "Update password"}
+            </Button>
+          </form>
+        </Card>
+      </div>
     </div>
   );
 }
