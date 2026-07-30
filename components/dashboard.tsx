@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { useTheme, type Theme } from "@/components/theme";
@@ -42,9 +43,12 @@ export function ClassTile({
 
 const THEME_OPTIONS: Theme[] = ["system", "dark", "light"];
 
-function initials(name: string) {
-  const trimmed = name.trim();
-  return trimmed ? trimmed.slice(0, 2).toUpperCase() : "?";
+/** "Vishal" -> "V"; "Viraf Patel" -> "VP" (first letter of first + last name). */
+export function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function UserMenu({ name, role }: { name: string; role: Role }) {
@@ -95,6 +99,14 @@ export function UserMenu({ name, role }: { name: string; role: Role }) {
             <div className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{name}</div>
             <div className="mt-0.5 text-xs font-medium capitalize text-zinc-500 dark:text-zinc-400">{role}</div>
           </div>
+
+          <Link
+            href="/dashboard/profile"
+            onClick={() => setOpen(false)}
+            className="block border-b border-zinc-100 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/10"
+          >
+            Profile
+          </Link>
 
           <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-white/10">
             <div className="px-1 pb-1.5 text-xs font-medium text-zinc-400 dark:text-zinc-500">Theme</div>

@@ -105,7 +105,7 @@ export default async function DashboardPage() {
           </p>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {typedEnrollments.map((enrollment) => (
             <ClassTile key={enrollment.classes.id} href={`/dashboard/classes/${enrollment.classes.id}`}>
               <Card className="h-full transition-colors hover:border-zinc-400 dark:hover:border-zinc-600">

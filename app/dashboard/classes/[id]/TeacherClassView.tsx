@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input } from "@/components/ui";
+import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
 
@@ -177,27 +177,54 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
 
 function StudentsPanel({ classId, students }: { classId: string; students: StudentEnrollmentRow[] }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [emailsInput, setEmailsInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  async function addStudent(event: FormEvent) {
+  async function addStudents(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setSummary(null);
+
+    const emails = Array.from(
+      new Set(
+        emailsInput
+          .split(/[\n,]+/)
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      )
+    );
+    if (emails.length === 0) {
+      setError("Enter at least one student email");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch(`/api/classes/${classId}/students`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ emails }),
       });
       const body = await res.json();
       if (!res.ok) {
         setError(body.message ?? "Something went wrong");
         return;
       }
-      setEmail("");
+
+      const { added, alreadyAssigned, notFound } = body.data as {
+        added: unknown[];
+        alreadyAssigned: string[];
+        notFound: string[];
+      };
+      const parts: string[] = [];
+      if (added.length) parts.push(`Added ${added.length} student${added.length === 1 ? "" : "s"}.`);
+      if (alreadyAssigned.length) parts.push(`Already in this class: ${alreadyAssigned.join(", ")}.`);
+      if (notFound.length) parts.push(`No account found for: ${notFound.join(", ")}.`);
+      setSummary(parts.join(" "));
+      setEmailsInput("");
       router.refresh();
     } catch {
       setError("Network error — please try again");
@@ -228,25 +255,33 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-medium">Students</h2>
       <Card>
-        <form className="flex items-end gap-3" onSubmit={addStudent}>
+        <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={addStudents}>
           <div className="flex-1">
-            <Field label="Student email" htmlFor="student-email">
-              <Input
-                id="student-email"
-                type="email"
+            <Field label="Student emails" htmlFor="student-emails">
+              <Textarea
+                id="student-emails"
                 required
-                placeholder="student@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                rows={2}
+                placeholder="student1@example.com, student2@example.com"
+                value={emailsInput}
+                onChange={(e) => setEmailsInput(e.target.value)}
               />
             </Field>
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Add multiple students at once — separate emails with commas or new lines.
+            </p>
           </div>
           <Button type="submit" disabled={isSubmitting}>
-            Add
+            {isSubmitting ? "Adding…" : "Add"}
           </Button>
         </form>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-col gap-2">
           <ErrorBanner message={error} />
+          {summary && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+              {summary}
+            </div>
+          )}
         </div>
       </Card>
 
