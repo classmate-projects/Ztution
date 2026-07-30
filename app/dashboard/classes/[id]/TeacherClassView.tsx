@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
+import { Toast, useToast } from "@/components/toast";
 import { formatDateTime, formatFileSize } from "@/lib/format";
-import type { ClassRow, ClassSessionRow, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
+import type { ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
 
 interface Props {
   klass: ClassRow;
@@ -14,13 +15,110 @@ interface Props {
   students: StudentEnrollmentRow[];
 }
 
+type TabId = "sessions" | "students" | "materials";
+
+const SESSIONS_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 9.5h18" />
+    <path d="M8 3v4M16 3v4" />
+  </svg>
+);
+
+const STUDENTS_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+    <circle cx="8" cy="8" r="3" />
+    <circle cx="16" cy="9" r="2.5" />
+    <path d="M2.5 19c0-3.3 2.6-5.5 5.5-5.5s5.5 2.2 5.5 5.5" />
+    <path d="M14 14c2.6.2 4.5 2.2 4.5 5" />
+  </svg>
+);
+
+const MATERIALS_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+    <path d="M6 2.75h8.5L19 7.25V19.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 19.5v-15A1.75 1.75 0 0 1 6 2.75Z" />
+    <path d="M14 2.75V7a1 1 0 0 0 1 1h4" />
+    <path d="M8 12.5h8M8 16h5" />
+  </svg>
+);
+
+const DOWNLOAD_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+    <path d="M12 3v12m0 0-4-4m4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const TRASH_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+    <path d="M4 7h16" strokeLinecap="round" />
+    <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 11v6M14 11v6" strokeLinecap="round" />
+  </svg>
+);
+
+const ICON_BUTTON_CLASSES =
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10";
+
+const DELETE_ICON_BUTTON_CLASSES =
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400";
+
 export function TeacherClassView({ klass, sessions, materials, students }: Props) {
+  const [activeTab, setActiveTab] = useState<TabId>("sessions");
+
+  const tabs: { id: TabId; label: string; count: number; icon: ReactNode }[] = [
+    { id: "sessions", label: "Class Sessions", count: sessions.length, icon: SESSIONS_ICON },
+    { id: "students", label: "Students", count: students.length, icon: STUDENTS_ICON },
+    { id: "materials", label: "Study Materials", count: materials.length, icon: MATERIALS_ICON },
+  ];
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">{klass.name}</h1>
-      <SessionsPanel classId={klass.id} sessions={sessions} />
-      <StudentsPanel classId={klass.id} students={students} />
-      <MaterialsPanel classId={klass.id} materials={materials} />
+
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <nav className="flex gap-2 overflow-x-auto lg:w-56 lg:flex-none lg:flex-col lg:gap-1 lg:overflow-visible">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
+                activeTab === tab.id
+                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
+              }`}
+            >
+              <span
+                className={
+                  activeTab === tab.id
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-zinc-400 dark:text-zinc-500"
+                }
+              >
+                {tab.icon}
+              </span>
+              <span className="flex-1 whitespace-nowrap text-left">{tab.label}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                  activeTab === tab.id
+                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                    : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="min-w-0 flex-1">
+          {activeTab === "sessions" && <SessionsPanel classId={klass.id} sessions={sessions} />}
+          {activeTab === "students" && <StudentsPanel classId={klass.id} students={students} />}
+          {activeTab === "materials" && <MaterialsPanel classId={klass.id} materials={materials} />}
+        </div>
+      </div>
     </div>
   );
 }
@@ -179,14 +277,14 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
   const router = useRouter();
   const [emailsInput, setEmailsInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [suspendingId, setSuspendingId] = useState<string | null>(null);
+  const { message: toastMessage, toastKey, showToast, hideToast } = useToast();
 
   async function addStudents(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    setSummary(null);
 
     const emails = Array.from(
       new Set(
@@ -223,7 +321,7 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
       if (added.length) parts.push(`Added ${added.length} student${added.length === 1 ? "" : "s"}.`);
       if (alreadyAssigned.length) parts.push(`Already in this class: ${alreadyAssigned.join(", ")}.`);
       if (notFound.length) parts.push(`No account found for: ${notFound.join(", ")}.`);
-      setSummary(parts.join(" "));
+      showToast(parts.join(" "));
       setEmailsInput("");
       router.refresh();
     } catch {
@@ -251,17 +349,40 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
     }
   }
 
+  async function toggleSuspension(studentId: string, currentStatus: EnrollmentStatus) {
+    setSuspendingId(studentId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/classes/${classId}/students`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, action: currentStatus === "suspended" ? "reactivate" : "suspend" }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "Something went wrong");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setSuspendingId(null);
+    }
+  }
+
   return (
     <section className="flex flex-col gap-4">
+      {toastMessage && <Toast key={toastKey} message={toastMessage} onClose={hideToast} />}
+
       <h2 className="text-lg font-medium">Students</h2>
       <Card>
-        <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={addStudents}>
-          <div className="flex-1">
+        <form className="flex flex-col gap-3" onSubmit={addStudents}>
+          <div>
             <Field label="Student emails" htmlFor="student-emails">
               <Textarea
                 id="student-emails"
                 required
                 rows={2}
+                className="min-h-20"
                 placeholder="student1@example.com, student2@example.com"
                 value={emailsInput}
                 onChange={(e) => setEmailsInput(e.target.value)}
@@ -271,17 +392,12 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
               Add multiple students at once — separate emails with commas or new lines.
             </p>
           </div>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? "Adding…" : "Add"}
           </Button>
         </form>
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-3">
           <ErrorBanner message={error} />
-          {summary && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-              {summary}
-            </div>
-          )}
         </div>
       </Card>
 
@@ -300,6 +416,13 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
               </div>
               <div className="flex items-center gap-3">
                 <Badge status={enrollment.status} />
+                <Button
+                  variant="secondary"
+                  disabled={suspendingId === enrollment.users?.id}
+                  onClick={() => enrollment.users && toggleSuspension(enrollment.users.id, enrollment.status)}
+                >
+                  {enrollment.status === "suspended" ? "Reactivate" : "Suspend"}
+                </Button>
                 <Button
                   variant="ghost"
                   disabled={removingId === enrollment.users?.id}
@@ -423,17 +546,22 @@ function MaterialsPanel({ classId, materials }: { classId: string; materials: Ma
               <div className="flex items-center gap-3">
                 <a
                   href={`/api/materials/${material.id}/download`}
-                  className="text-sm font-medium underline"
+                  className={ICON_BUTTON_CLASSES}
+                  title="Download"
+                  aria-label="Download"
                 >
-                  Download
+                  {DOWNLOAD_ICON}
                 </a>
-                <Button
-                  variant="ghost"
+                <button
+                  type="button"
                   disabled={deletingId === material.id}
                   onClick={() => deleteMaterial(material.id)}
+                  title="Delete"
+                  aria-label="Delete"
+                  className={DELETE_ICON_BUTTON_CLASSES}
                 >
-                  Delete
-                </Button>
+                  {TRASH_ICON}
+                </button>
               </div>
             </Card>
           ))}

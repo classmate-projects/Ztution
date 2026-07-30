@@ -38,15 +38,26 @@ create index if not exists classes_teacher_id_idx on classes (teacher_id);
 
 -- Teachers assign students to a class ('assigned'); the student then confirms
 -- via the join endpoint, flipping status to 'active' and stamping joined_at.
+-- A teacher can also 'suspend' a student (e.g. unpaid fee) to cut off access
+-- without deleting the enrollment row, then reactivate back to their prior stage.
 create table if not exists class_students (
   class_id uuid not null references classes (id) on delete cascade,
   student_id uuid not null references users (id) on delete cascade,
-  status text not null default 'assigned' check (status in ('assigned', 'active')),
+  status text not null default 'assigned' check (status in ('assigned', 'active', 'suspended')),
   assigned_at timestamptz not null default now(),
   joined_at timestamptz,
   primary key (class_id, student_id)
 );
 create index if not exists class_students_student_id_idx on class_students (student_id);
+
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'class_students_status_check') then
+    alter table class_students drop constraint class_students_status_check;
+  end if;
+  alter table class_students add constraint class_students_status_check
+    check (status in ('assigned', 'active', 'suspended'));
+end $$;
 
 -- A class can have many sessions: scheduled ahead of time, or started instantly
 -- (scheduled_at defaults to now(), status jumps straight to 'live'). No call

@@ -71,6 +71,7 @@ const BADGE_CLASSES: Record<string, string> = {
   ended: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-400",
   assigned: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
   active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  suspended: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
 };
 
 export function Badge({ status }: { status: string }) {

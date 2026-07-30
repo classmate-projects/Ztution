@@ -38,6 +38,9 @@ export function assertEnrolled(enrollment: ClassStudentRow | null) {
   if (!enrollment) {
     throw new ForbiddenError("You are not assigned to this class");
   }
+  if (enrollment.status === "suspended") {
+    throw new ForbiddenError("Your access to this class has been suspended");
+  }
 }
 
 export async function getAssignmentOrThrow(assignmentId: string): Promise<AssignmentRow> {

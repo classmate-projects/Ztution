@@ -1,5 +1,5 @@
 export type Role = "teacher" | "student";
-export type EnrollmentStatus = "assigned" | "active";
+export type EnrollmentStatus = "assigned" | "active" | "suspended";
 export type SessionStatus = "scheduled" | "live" | "ended";
 
 export interface UserRow {

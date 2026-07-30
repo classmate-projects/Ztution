@@ -11,7 +11,33 @@ interface Props {
   enrollment: ClassStudentRow;
 }
 
+const DOWNLOAD_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+    <path d="M12 3v12m0 0-4-4m4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const ICON_BUTTON_CLASSES =
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10";
+
 export function StudentClassView({ klass, sessions, materials, enrollment }: Props) {
+  if (enrollment.status === "suspended") {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">{klass.name}</h1>
+          <Badge status={enrollment.status} />
+        </div>
+        <Card>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Your access to this class has been suspended. Contact your teacher to have it restored.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
@@ -81,9 +107,11 @@ export function StudentClassView({ klass, sessions, materials, enrollment }: Pro
                 </div>
                 <a
                   href={`/api/materials/${material.id}/download`}
-                  className="text-sm font-medium underline"
+                  className={ICON_BUTTON_CLASSES}
+                  title="Download"
+                  aria-label="Download"
                 >
-                  Download
+                  {DOWNLOAD_ICON}
                 </a>
               </Card>
             ))}
