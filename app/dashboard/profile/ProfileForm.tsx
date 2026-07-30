@@ -4,11 +4,9 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, ErrorBanner, Field, Input } from "@/components/ui";
 import { PasswordInput } from "@/components/password-input";
+import { Toast, useToast } from "@/components/toast";
 import { initials } from "@/components/dashboard";
 import type { Role } from "@/lib/supabase/types";
-
-const SUCCESS_BANNER_CLASSES =
-  "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300";
 
 interface Props {
   initialName: string;
@@ -23,20 +21,19 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
   const [name, setName] = useState(initialName);
   const [username, setUsername] = useState(initialUsername);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSuccess, setProfileSuccess] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  const { message: toastMessage, toastKey, showToast, hideToast } = useToast();
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
     setProfileError(null);
-    setProfileSuccess(false);
     setSavingProfile(true);
     try {
       const res = await fetch("/api/auth/me", {
@@ -49,7 +46,7 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
         setProfileError(body.message ?? "Something went wrong");
         return;
       }
-      setProfileSuccess(true);
+      showToast("Profile updated");
       router.refresh();
     } catch {
       setProfileError("Network error — please try again");
@@ -61,7 +58,6 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
   async function savePassword(event: FormEvent) {
     event.preventDefault();
     setPasswordError(null);
-    setPasswordSuccess(false);
 
     if (newPassword !== confirmPassword) {
       setPasswordError("New passwords do not match");
@@ -80,7 +76,7 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
         setPasswordError(body.message ?? "Something went wrong");
         return;
       }
-      setPasswordSuccess(true);
+      showToast("Password updated");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -93,6 +89,8 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
 
   return (
     <div className="flex flex-col gap-6">
+      {toastMessage && <Toast key={toastKey} message={toastMessage} onClose={hideToast} />}
+
       <div className="flex items-center gap-4">
         <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xl font-semibold text-white dark:bg-indigo-500">
           {initials(name)}
@@ -109,7 +107,6 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
           <form className="flex h-full flex-col gap-4" onSubmit={saveProfile}>
             <h2 className="text-base font-semibold">Profile details</h2>
             <ErrorBanner message={profileError} />
-            {profileSuccess && <div className={SUCCESS_BANNER_CLASSES}>Profile updated.</div>}
             <Field label="Name" htmlFor="profile-name">
               <Input id="profile-name" required value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
@@ -133,7 +130,6 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
           <form className="flex h-full flex-col gap-4" onSubmit={savePassword}>
             <h2 className="text-base font-semibold">Change password</h2>
             <ErrorBanner message={passwordError} />
-            {passwordSuccess && <div className={SUCCESS_BANNER_CLASSES}>Password updated.</div>}
             <Field label="Current password" htmlFor="current-password">
               <PasswordInput
                 id="current-password"
