@@ -53,23 +53,21 @@ body {
   color: transparent;
 }
 
-@keyframes blob-float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(4%, -6%) scale(1.08); }
-  66% { transform: translate(-3%, 4%) scale(0.94); }
+/* Fine grid used behind the marketing (pre-login) pages — always dark. */
+.bg-grid-slate {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
-.animate-blob {
-  animation: blob-float 16s ease-in-out infinite;
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.85; }
 }
 
-@keyframes icon-bob {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-14px) rotate(6deg); }
-}
-
-.animate-bob {
-  animation: icon-bob 6s ease-in-out infinite;
+.animate-glow-pulse {
+  animation: glow-pulse 8s ease-in-out infinite;
 }
 
 @keyframes fade-in-up {
@@ -82,8 +80,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-blob,
-  .animate-bob,
+  .animate-glow-pulse,
   .animate-fade-in-up {
     animation: none;
   }

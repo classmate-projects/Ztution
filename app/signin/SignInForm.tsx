@@ -2,7 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, ErrorBanner, Field, Input } from "@/components/ui";
+import {
+  MarketingButton,
+  MarketingErrorBanner,
+  MarketingField,
+  MarketingInput,
+  MarketingPasswordInput,
+} from "@/components/marketing";
 
 export function SignInForm() {
   const router = useRouter();
@@ -37,9 +43,9 @@ export function SignInForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <ErrorBanner message={error} />
-      <Field label="Email" htmlFor="email">
-        <Input
+      <MarketingErrorBanner message={error} />
+      <MarketingField label="Email" htmlFor="email">
+        <MarketingInput
           id="email"
           type="email"
           autoComplete="email"
@@ -47,20 +53,19 @@ export function SignInForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-      </Field>
-      <Field label="Password" htmlFor="password">
-        <Input
+      </MarketingField>
+      <MarketingField label="Password" htmlFor="password">
+        <MarketingPasswordInput
           id="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-      </Field>
-      <Button type="submit" disabled={isSubmitting} className="mt-2">
+      </MarketingField>
+      <MarketingButton type="submit" disabled={isSubmitting} className="mt-2 w-full">
         {isSubmitting ? "Signing in…" : "Sign In"}
-      </Button>
+      </MarketingButton>
     </form>
   );
 }

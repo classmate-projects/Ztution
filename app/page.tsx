@@ -1,94 +1,148 @@
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { buttonClasses, Card } from "@/components/ui";
-import { PageDecor } from "@/components/decor";
+import { Logo, MarketingCard, marketingButtonClasses } from "@/components/marketing";
+import { MarketingBackdrop } from "@/components/decor";
 
 const FEATURES = [
   {
-    icon: "🎥",
     title: "Live classes",
     description:
       "Teachers conduct lectures for their assigned students in scheduled or instantly-started class sessions.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-5 w-5">
+        <rect x="2.5" y="6" width="13" height="12" rx="2.5" />
+        <path d="M15.5 10.2 20.4 7.3c.66-.4 1.5.08 1.5.85v7.7c0 .77-.84 1.24-1.5.85l-4.9-2.9" />
+      </svg>
+    ),
   },
   {
-    icon: "📚",
     title: "Study materials",
     description:
       "Teachers upload slides, notes, and documents; students read and download them anytime, right from the class page.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-5 w-5">
+        <path d="M6 2.75h8.5L19 7.25V19.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 19.5v-15A1.75 1.75 0 0 1 6 2.75Z" />
+        <path d="M14 2.75V7a1 1 0 0 0 1 1h4" />
+        <path d="M8 12.5h8M8 16h5" />
+      </svg>
+    ),
   },
   {
-    icon: "🧑‍🏫",
     title: "Role-based dashboards",
     description:
       "Teachers manage classes, students, and materials. Students see only what's assigned to them — a clean, focused view.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-5 w-5">
+        <rect x="2.75" y="4" width="18.5" height="16" rx="2.25" />
+        <path d="M9.5 4v16" />
+        <path d="M2.75 9h6.75" />
+      </svg>
+    ),
   },
+];
+
+const STEPS = [
+  { step: "01", title: "Create a class", description: "Teachers set up a class and share the join details with their students." },
+  { step: "02", title: "Invite students", description: "Students join with an invite, landing straight in their own focused dashboard." },
+  { step: "03", title: "Go live", description: "Start a lecture, share materials, and keep everything in one place." },
 ];
 
 export default async function Home() {
   const session = await getSession();
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden">
-      <PageDecor />
+    <div className="relative flex flex-1 flex-col overflow-hidden bg-zinc-950 text-white">
+      <MarketingBackdrop />
 
-      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
-        <span className="text-lg font-semibold tracking-tight">
-          <span className="text-gradient-brand">Ztution</span>
-        </span>
-        <nav className="flex items-center gap-3">
-          {session ? (
-            <Link href="/dashboard" className={buttonClasses("primary")}>
-              Go to Dashboard
-            </Link>
-          ) : (
-            <>
-              <Link href="/signin" className={buttonClasses("ghost")}>
-                Sign In
+      <header className="sticky top-0 z-10 border-b border-white/5 bg-zinc-950/70 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+          <Logo />
+          <nav className="flex items-center gap-2">
+            {session ? (
+              <Link href="/dashboard" className={marketingButtonClasses("primary")}>
+                Go to Dashboard
               </Link>
-              <Link href="/signup" className={buttonClasses("primary")}>
-                Get Started
-              </Link>
-            </>
-          )}
-        </nav>
+            ) : (
+              <>
+                <Link href="/signin" className={marketingButtonClasses("ghost")}>
+                  Sign In
+                </Link>
+                <Link href="/signup" className={marketingButtonClasses("primary")}>
+                  Get Started
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-6 py-16 text-center sm:py-24">
-        <span className="animate-fade-in-up mb-4 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white/70 px-4 py-1.5 text-sm font-medium text-violet-700 shadow-sm backdrop-blur-sm dark:border-violet-500/30 dark:bg-white/5 dark:text-violet-300">
-          ✨ Learning made fun for every age
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-6 py-20 text-center sm:py-28">
+        <span className="animate-fade-in-up mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-medium text-slate-300">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Built for teachers &amp; students
         </span>
-        <h1 className="animate-fade-in-up max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
+        <h1 className="animate-fade-in-up max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
           One place for lectures, materials, and{" "}
-          <span className="text-gradient-brand">every class</span> you teach or attend.
+          <span className="text-indigo-400">every class</span> you teach or attend.
         </h1>
-        <p className="animate-fade-in-up mt-6 max-w-xl text-lg text-zinc-600 dark:text-zinc-400">
+        <p className="animate-fade-in-up mt-6 max-w-xl text-lg text-slate-400">
           Ztution gives teachers a simple way to run classes and share study materials, and gives
           students an easy way to join in and keep up.
         </p>
         <div className="animate-fade-in-up mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link href={session ? "/dashboard" : "/signup"} className={buttonClasses("primary", "px-8 py-3")}>
+          <Link href={session ? "/dashboard" : "/signup"} className={marketingButtonClasses("primary", "px-8 py-3")}>
             {session ? "Go to Dashboard" : "Get Started Free"}
           </Link>
           {!session && (
-            <Link href="/signin" className={buttonClasses("secondary", "px-8 py-3")}>
+            <Link href="/signin" className={marketingButtonClasses("secondary", "px-8 py-3")}>
               Sign In
             </Link>
           )}
         </div>
 
-        <div className="mt-20 grid w-full gap-4 text-left sm:grid-cols-3">
+        <div className="mt-24 grid w-full gap-4 text-left sm:grid-cols-3">
           {FEATURES.map((feature) => (
-            <Card key={feature.title} className="animate-fade-in-up">
-              <span className="text-2xl">{feature.icon}</span>
-              <h2 className="mt-3 text-base font-semibold">{feature.title}</h2>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{feature.description}</p>
-            </Card>
+            <MarketingCard key={feature.title} className="animate-fade-in-up">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                {feature.icon}
+              </span>
+              <h2 className="mt-4 text-base font-semibold text-white">{feature.title}</h2>
+              <p className="mt-2 text-sm text-slate-400">{feature.description}</p>
+            </MarketingCard>
           ))}
+        </div>
+
+        <div className="mt-28 w-full">
+          <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">How it works</h2>
+          <div className="mt-10 grid w-full gap-8 text-left sm:grid-cols-3">
+            {STEPS.map((item) => (
+              <div key={item.step} className="animate-fade-in-up">
+                <span className="text-sm font-semibold text-indigo-400">{item.step}</span>
+                <h3 className="mt-2 text-base font-semibold text-white">{item.title}</h3>
+                <p className="mt-2 text-sm text-slate-400">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="animate-fade-in-up mt-28 flex w-full flex-col items-center gap-5 rounded-2xl border border-white/10 bg-white/[0.03] px-8 py-12">
+          <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            Ready to bring your classroom online?
+          </h2>
+          <p className="max-w-md text-sm text-slate-400">
+            Create your first class in minutes — no credit card required.
+          </p>
+          <Link href={session ? "/dashboard" : "/signup"} className={marketingButtonClasses("primary", "px-8 py-3")}>
+            {session ? "Go to Dashboard" : "Get Started Free"}
+          </Link>
         </div>
       </main>
 
-      <footer className="mx-auto w-full max-w-5xl px-6 py-8 text-center text-sm text-zinc-500">
-        Ztution — built for teachers and students.
+      <footer className="border-t border-white/5">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-slate-500 sm:flex-row">
+          <Logo />
+          <span>© 2026 Ztution — built for teachers and students.</span>
+        </div>
       </footer>
     </div>
   );
