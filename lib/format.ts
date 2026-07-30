@@ -6,6 +6,11 @@ export function formatDateTime(iso: string | null): string {
   });
 }
 
+export function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
 export function formatFileSize(bytes: number | null): string {
   if (!bytes) return "";
   const kb = bytes / 1024;

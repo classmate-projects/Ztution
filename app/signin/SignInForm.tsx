@@ -2,13 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import {
-  MarketingButton,
-  MarketingErrorBanner,
-  MarketingField,
-  MarketingInput,
-  MarketingPasswordInput,
-} from "@/components/marketing";
+import { MarketingButton, MarketingErrorBanner, MarketingField, MarketingInput } from "@/components/marketing";
+import { MarketingPasswordInput } from "@/components/marketing-password-input";
 
 export function SignInForm() {
   const router = useRouter();

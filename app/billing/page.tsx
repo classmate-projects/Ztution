@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getSubscriptionStatus } from "@/lib/billing";
-import { SignOutButton } from "@/components/dashboard";
+import { DashboardHeader } from "@/components/dashboard-header";
 import { BillingClient } from "./BillingClient";
 
 type Props = { searchParams: Promise<{ success?: string; canceled?: string }> };
@@ -16,12 +16,7 @@ export default async function BillingPage({ searchParams }: Props) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-zinc-200/70 bg-white/60 backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
-          <span className="text-lg font-semibold tracking-tight text-gradient-brand">Ztution</span>
-          <SignOutButton />
-        </div>
-      </header>
+      <DashboardHeader />
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 py-16">
         <div>
           <h1 className="text-2xl font-semibold">Billing</h1>

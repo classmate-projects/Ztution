@@ -7,9 +7,9 @@ import {
   MarketingErrorBanner,
   MarketingField,
   MarketingInput,
-  MarketingPasswordInput,
   MarketingRadioCard,
 } from "@/components/marketing";
+import { MarketingPasswordInput } from "@/components/marketing-password-input";
 import type { Role } from "@/lib/supabase/types";
 
 const STUDENT_ICON = (
