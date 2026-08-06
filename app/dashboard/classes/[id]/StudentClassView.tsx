@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge, buttonClasses, Card } from "@/components/ui";
-import { JoinClassButton } from "@/components/dashboard";
+import { InviteActions } from "@/components/dashboard";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, ClassStudentRow, MaterialRow } from "@/lib/supabase/types";
 
@@ -43,7 +43,7 @@ export function StudentClassView({ klass, sessions, materials, enrollment }: Pro
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{klass.name}</h1>
         {enrollment.status === "assigned" ? (
-          <JoinClassButton classId={klass.id} />
+          <InviteActions classId={klass.id} />
         ) : (
           <Badge status={enrollment.status} />
         )}

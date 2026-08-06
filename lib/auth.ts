@@ -1,17 +1,5 @@
-import bcrypt from "bcryptjs";
-import { jwtVerify, SignJWT } from "jose";
+import type { User } from "@supabase/supabase-js";
 import type { Role } from "./supabase/types";
-
-const TOKEN_TTL = "8h";
-const SALT_ROUNDS = 12;
-
-function getSecretKey() {
-  const secret = process.env.AUTH_JWT_SECRET;
-  if (!secret) {
-    throw new Error("Missing AUTH_JWT_SECRET environment variable");
-  }
-  return new TextEncoder().encode(secret);
-}
 
 export interface AuthTokenPayload {
   userId: string;
@@ -19,34 +7,14 @@ export interface AuthTokenPayload {
   email: string;
 }
 
-export function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS);
-}
-
-export function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
-  return bcrypt.compare(password, passwordHash);
-}
-
-export async function signToken(payload: AuthTokenPayload): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(TOKEN_TTL)
-    .sign(getSecretKey());
-}
-
-export class InvalidTokenError extends Error {}
-
-export async function verifyToken(token: string): Promise<AuthTokenPayload> {
-  try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    const { userId, role, email } = payload as Record<string, unknown>;
-    if (typeof userId !== "string" || typeof email !== "string" || (role !== "teacher" && role !== "student")) {
-      throw new InvalidTokenError("Token payload is malformed");
-    }
-    return { userId, role, email };
-  } catch (error) {
-    if (error instanceof InvalidTokenError) throw error;
-    throw new InvalidTokenError("Token is invalid or expired");
-  }
+/**
+ * `role` lives in `app_metadata` (set only via the service-role admin API at
+ * signup — see supabase/schema.sql's handle_new_user trigger), never in the
+ * client-writable `user_metadata`, so a user can never grant themselves the
+ * other role.
+ */
+export function toAuthPayload(user: User): AuthTokenPayload | null {
+  const role = user.app_metadata?.role;
+  if ((role !== "teacher" && role !== "student") || !user.email) return null;
+  return { userId: user.id, role, email: user.email };
 }

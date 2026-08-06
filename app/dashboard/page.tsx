@@ -2,14 +2,34 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { buttonClasses, Card, Badge } from "@/components/ui";
-import { ClassTile, JoinClassButton } from "@/components/dashboard";
-import { formatDate } from "@/lib/format";
+import { buttonClasses, Card } from "@/components/ui";
+import { ClassTile } from "@/components/dashboard";
+import { formatDate, initials } from "@/lib/format";
 import type { ClassRow, EnrollmentStatus } from "@/lib/supabase/types";
 
 interface EnrolledClass {
   status: EnrollmentStatus;
-  classes: { id: string; name: string };
+  classes: { id: string; name: string; teacher_id: string; users: { id: string; name: string } | null };
+}
+
+interface TeacherGroup {
+  teacherId: string;
+  teacherName: string;
+  enrollments: EnrolledClass[];
+}
+
+function groupByTeacher(enrollments: EnrolledClass[]): TeacherGroup[] {
+  const groups = new Map<string, TeacherGroup>();
+  for (const enrollment of enrollments) {
+    const teacherId = enrollment.classes.teacher_id;
+    let group = groups.get(teacherId);
+    if (!group) {
+      group = { teacherId, teacherName: enrollment.classes.users?.name ?? "Unknown teacher", enrollments: [] };
+      groups.set(teacherId, group);
+    }
+    group.enrollments.push(enrollment);
+  }
+  return Array.from(groups.values());
 }
 
 /** `classes` row selected with an embedded `class_students(count)` aggregate. */
@@ -86,19 +106,26 @@ export default async function DashboardPage() {
     );
   }
 
-  const { data: enrollments } = await supabaseAdmin
+  const { data: enrollments, error: enrollmentsError } = await supabaseAdmin
     .from("class_students")
-    .select("status, classes(id, name)")
+    // `users!classes_teacher_id_fkey` disambiguates the embed: classes and
+    // users are connected two ways (classes.teacher_id directly, and
+    // indirectly through class_students), so PostgREST can't infer which
+    // relationship to use for a bare `users(...)` here and errors (PGRST201).
+    .select("status, classes(id, name, teacher_id, users!classes_teacher_id_fkey(id, name))")
     .eq("student_id", session.userId);
+  if (enrollmentsError) throw enrollmentsError;
   // supabase-js can't infer this join is one-to-one without generated DB
   // types (it defaults nested selects to arrays); it's a single row at runtime
-  // since class_students.class_id -> classes is many-to-one.
+  // since class_students.class_id -> classes and classes.teacher_id -> users
+  // are both many-to-one.
   const typedEnrollments = (enrollments ?? []) as unknown as EnrolledClass[];
+  const teacherGroups = groupByTeacher(typedEnrollments);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">My Classes</h1>
-      {!typedEnrollments.length ? (
+      <h1 className="text-xl font-semibold">My Teachers</h1>
+      {!teacherGroups.length ? (
         <Card>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             You haven&apos;t been assigned to any classes yet — ask your teacher to add you.
@@ -106,18 +133,22 @@ export default async function DashboardPage() {
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {typedEnrollments.map((enrollment) => (
-            <ClassTile key={enrollment.classes.id} href={`/dashboard/classes/${enrollment.classes.id}`}>
+          {teacherGroups.map((group) => (
+            <ClassTile key={group.teacherId} href={`/dashboard/teachers/${group.teacherId}`}>
               <Card className="h-full transition-colors hover:border-zinc-400 dark:hover:border-zinc-600">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{enrollment.classes.name}</span>
-                  <Badge status={enrollment.status} />
-                </div>
-                {enrollment.status === "assigned" && (
-                  <div className="mt-3">
-                    <JoinClassButton classId={enrollment.classes.id} />
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white dark:bg-indigo-500">
+                    {initials(group.teacherName)}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                      {group.teacherName}
+                    </div>
+                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {group.enrollments.length} {group.enrollments.length === 1 ? "class" : "classes"}
+                    </div>
                   </div>
-                )}
+                </div>
               </Card>
             </ClassTile>
           ))}

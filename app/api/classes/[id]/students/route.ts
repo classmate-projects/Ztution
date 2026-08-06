@@ -77,6 +77,18 @@ export async function POST(request: NextRequest, { params }: Params) {
           .select("status, assigned_at, users(id, name, email)");
         if (insertError) throw insertError;
         added = inserted ?? [];
+
+        // Best-effort: a failure here shouldn't fail the actual enrollment.
+        const { error: notifyError } = await supabaseAdmin.from("notifications").insert(
+          toInsert.map((s) => ({
+            user_id: s.id,
+            type: "class_invite",
+            class_id: id,
+            actor_id: user.userId,
+            message: `You've been added to ${klass.name}`,
+          }))
+        );
+        if (notifyError) console.error("Failed to create class invite notifications", notifyError);
       }
     }
 

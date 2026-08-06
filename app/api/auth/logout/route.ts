@@ -1,8 +1,12 @@
-import { apiSuccess } from "@/lib/api-response";
-import { SESSION_COOKIE_NAME } from "@/lib/authorize";
+import { apiSuccess, toErrorResponse } from "@/lib/api-response";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function POST() {
-  const response = apiSuccess("Logged out successfully");
-  response.cookies.delete(SESSION_COOKIE_NAME);
-  return response;
+  try {
+    const supabase = await createServerSupabaseClient();
+    await supabase.auth.signOut();
+    return apiSuccess("Logged out successfully");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }

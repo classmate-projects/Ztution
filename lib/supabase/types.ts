@@ -6,7 +6,6 @@ export interface UserRow {
   id: string;
   email: string;
   username: string;
-  password_hash: string;
   name: string;
   role: Role;
   stripe_customer_id: string | null;

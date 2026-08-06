@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, ErrorBanner, Field, Input } from "@/components/ui";
 import { PasswordInput } from "@/components/password-input";
 import { Toast, useToast } from "@/components/toast";
-import { initials } from "@/components/dashboard";
+import { initials } from "@/lib/format";
 import type { Role } from "@/lib/supabase/types";
 
 interface Props {

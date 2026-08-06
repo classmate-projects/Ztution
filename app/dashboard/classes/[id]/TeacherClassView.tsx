@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
 import { Toast, useToast } from "@/components/toast";
+import { DateTimePicker } from "@/components/date-time-picker";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
 
@@ -197,12 +198,7 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
           </div>
           <div className="flex-1">
             <Field label="Schedule for (optional)" htmlFor="session-time">
-              <Input
-                id="session-time"
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-              />
+              <DateTimePicker id="session-time" value={scheduledAt} onChange={setScheduledAt} />
             </Field>
           </div>
           <div className="flex gap-2">

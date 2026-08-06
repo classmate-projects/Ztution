@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
-import { hashPassword, verifyPassword } from "@/lib/auth";
 import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { authenticate, NotFoundError, ValidationError } from "@/lib/authorize";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseAdmin, supabaseAnon } from "@/lib/supabase/server";
 import { readJsonBody, requireString } from "@/lib/validate";
 
 export async function GET(request: NextRequest) {
@@ -31,10 +30,10 @@ export async function PATCH(request: NextRequest) {
     const session = await authenticate(request);
     const body = await readJsonBody(request);
 
-    const updates: { name?: string; username?: string; password_hash?: string } = {};
+    const profileUpdates: { name?: string; username?: string } = {};
 
     if (body.name !== undefined) {
-      updates.name = requireString(body.name, "name");
+      profileUpdates.name = requireString(body.name, "name");
     }
 
     if (body.username !== undefined) {
@@ -53,7 +52,7 @@ export async function PATCH(request: NextRequest) {
       if (existing) {
         throw new ValidationError("This username is already taken");
       }
-      updates.username = username;
+      profileUpdates.username = username;
     }
 
     if (body.newPassword !== undefined) {
@@ -63,28 +62,36 @@ export async function PATCH(request: NextRequest) {
         throw new ValidationError("'newPassword' must be at least 8 characters");
       }
 
-      const { data: user, error } = await supabaseAdmin
-        .from("users")
-        .select("password_hash")
-        .eq("id", session.userId)
-        .maybeSingle();
-      if (error) throw error;
-      if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
+      const { error: verifyError } = await supabaseAnon.auth.signInWithPassword({
+        email: session.email,
+        password: currentPassword,
+      });
+      if (verifyError) {
         throw new ValidationError("Current password is incorrect");
       }
-      updates.password_hash = await hashPassword(newPassword);
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(session.userId, {
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
     }
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(profileUpdates).length === 0 && body.newPassword === undefined) {
       throw new ValidationError("Nothing to update");
     }
 
-    const { data: updated, error } = await supabaseAdmin
-      .from("users")
-      .update(updates)
-      .eq("id", session.userId)
-      .select("id, name, username, email, role, created_at")
-      .single();
+    const { data: updated, error } = Object.keys(profileUpdates).length
+      ? await supabaseAdmin
+          .from("users")
+          .update(profileUpdates)
+          .eq("id", session.userId)
+          .select("id, name, username, email, role, created_at")
+          .single()
+      : await supabaseAdmin
+          .from("users")
+          .select("id, name, username, email, role, created_at")
+          .eq("id", session.userId)
+          .single();
     if (error) throw error;
 
     return apiSuccess("Profile updated", { user: updated });
