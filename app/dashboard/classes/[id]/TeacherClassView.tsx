@@ -8,7 +8,7 @@ import { Toast, useToast } from "@/components/toast";
 import { DateTimePicker } from "@/components/date-time-picker";
 import { RealtimeClassRefresher } from "@/components/realtime-class";
 import { formatDateTime, formatFileSize } from "@/lib/format";
-import type { ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
+import type { ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, SessionMode, StudentEnrollmentRow } from "@/lib/supabase/types";
 
 interface Props {
   klass: ClassRow;
@@ -137,6 +137,9 @@ export function TeacherClassView({ klass, sessions, materials, students }: Props
   );
 }
 
+/** What the mode dialog will start once a mode is picked. */
+type StartIntent = { kind: "instant" } | { kind: "scheduled"; sessionId: string };
+
 function SessionsPanel({ classId, sessions }: { classId: string; sessions: ClassSessionRow[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -144,8 +147,10 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [startIntent, setStartIntent] = useState<StartIntent | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
-  async function createSession(event: FormEvent, instant: boolean) {
+  async function scheduleSession(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
@@ -153,10 +158,7 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
       const res = await fetch(`/api/classes/${classId}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          ...(instant ? {} : { scheduledAt: new Date(scheduledAt).toISOString() }),
-        }),
+        body: JSON.stringify({ title, scheduledAt: new Date(scheduledAt).toISOString() }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -173,14 +175,48 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
     }
   }
 
-  async function transition(sessionId: string, action: "start" | "end") {
+  // Picking a mode is what actually starts the class: create (instant) or
+  // flip the scheduled session to live, then drop straight into the call.
+  async function startWithMode(mode: SessionMode) {
+    if (!startIntent) return;
+    setError(null);
+    setIsStarting(true);
+    try {
+      const res = await (startIntent.kind === "instant"
+        ? fetch(`/api/classes/${classId}/sessions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, mode }),
+          })
+        : fetch(`/api/classes/${classId}/sessions/${startIntent.sessionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "start", mode }),
+          }));
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "Something went wrong");
+        setStartIntent(null);
+        return;
+      }
+      const session = body.data.session as ClassSessionRow;
+      router.push(`/dashboard/classes/${classId}/sessions/${session.id}/call`);
+    } catch {
+      setError("Network error — please try again");
+      setStartIntent(null);
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
+  async function endSession(sessionId: string) {
     setActioningId(sessionId);
     setError(null);
     try {
       const res = await fetch(`/api/classes/${classId}/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: "end" }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -197,7 +233,13 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-medium">Class Sessions</h2>
       <Card>
-        <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={(e) => createSession(e, true)}>
+        <form
+          className="flex flex-col gap-4 sm:flex-row sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (title) setStartIntent({ kind: "instant" });
+          }}
+        >
           <div className="flex-1">
             <Field label="Session title" htmlFor="session-title">
               <Input
@@ -222,7 +264,7 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
               type="button"
               variant="secondary"
               disabled={isSubmitting || !title || !scheduledAt}
-              onClick={(e) => createSession(e, false)}
+              onClick={scheduleSession}
             >
               Schedule
             </Button>
@@ -251,7 +293,7 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
                   <Button
                     variant="secondary"
                     disabled={actioningId === session.id}
-                    onClick={() => transition(session.id, "start")}
+                    onClick={() => setStartIntent({ kind: "scheduled", sessionId: session.id })}
                   >
                     Start
                   </Button>
@@ -267,7 +309,7 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
                     <Button
                       variant="danger"
                       disabled={actioningId === session.id}
-                      onClick={() => transition(session.id, "end")}
+                      onClick={() => endSession(session.id)}
                     >
                       End
                     </Button>
@@ -277,6 +319,16 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
             </Card>
           ))}
         </div>
+      )}
+
+      {startIntent && (
+        <SessionModeDialog
+          busy={isStarting}
+          onSelect={startWithMode}
+          onCancel={() => {
+            if (!isStarting) setStartIntent(null);
+          }}
+        />
       )}
     </section>
   );
@@ -573,6 +625,96 @@ function SettingsPanel({ klass }: { klass: ClassRow }) {
         />
       )}
     </section>
+  );
+}
+
+const STREAMING_BIG_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-10 w-10">
+    <circle cx="12" cy="12" r="2.5" />
+    <path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" strokeLinecap="round" />
+    <path d="M3.5 3.5a12 12 0 0 0 0 17M20.5 3.5a12 12 0 0 1 0 17" strokeLinecap="round" />
+  </svg>
+);
+
+const CONFERENCE_BIG_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-10 w-10">
+    <rect x="2.5" y="4.5" width="9" height="7" rx="1.5" />
+    <rect x="13.5" y="4.5" width="8" height="6" rx="1.5" />
+    <rect x="2.5" y="13.5" width="8" height="6" rx="1.5" />
+    <rect x="12.5" y="12.5" width="9" height="7" rx="1.5" />
+  </svg>
+);
+
+const MODE_OPTIONS: {
+  mode: SessionMode;
+  title: string;
+  description: string;
+  icon: ReactNode;
+}[] = [
+  {
+    mode: "streaming",
+    title: "Streaming",
+    description: "You broadcast to the class. Students watch and listen — their cameras and mics stay off.",
+    icon: STREAMING_BIG_ICON,
+  },
+  {
+    mode: "conference",
+    title: "Conference",
+    description: "Everyone can turn on their camera and mic — a two-way group discussion.",
+    icon: CONFERENCE_BIG_ICON,
+  },
+];
+
+function SessionModeDialog({
+  busy,
+  onSelect,
+  onCancel,
+}: {
+  busy: boolean;
+  onSelect: (mode: SessionMode) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-8 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-center text-2xl font-semibold">How do you want to run this class?</h3>
+        <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
+          Choose a mode to start the session.
+        </p>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {MODE_OPTIONS.map((option) => (
+            <button
+              key={option.mode}
+              type="button"
+              disabled={busy}
+              onClick={() => onSelect(option.mode)}
+              className="group flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-zinc-200 p-6 text-center transition-colors hover:border-indigo-500 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:hover:border-indigo-400 dark:hover:bg-indigo-500/10"
+            >
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-500/15 dark:text-indigo-300 dark:group-hover:bg-indigo-500 dark:group-hover:text-white">
+                {option.icon}
+              </span>
+              <span className="text-lg font-semibold">{option.title}</span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">{option.description}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            {busy ? "Starting…" : "Cancel"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

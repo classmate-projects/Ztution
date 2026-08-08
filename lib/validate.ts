@@ -25,6 +25,19 @@ export function optionalMoneyAmount(value: unknown, field: string): number | und
   return amount;
 }
 
+/** Validates an optional value against a fixed set of allowed strings. */
+export function optionalEnum<T extends string>(
+  value: unknown,
+  field: string,
+  allowed: readonly T[]
+): T | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !allowed.includes(value as T)) {
+    throw new ValidationError(`'${field}' must be one of: ${allowed.join(", ")}`);
+  }
+  return value as T;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function requireEmail(value: unknown, field = "email"): string {

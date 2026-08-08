@@ -99,6 +99,10 @@ create table class_sessions (
   title text not null,
   scheduled_at timestamptz not null default now(),
   status text not null default 'scheduled' check (status in ('scheduled', 'live', 'ended')),
+  -- How the live call runs: 'conference' (everyone shares camera/mic) or
+  -- 'streaming' (only the teacher broadcasts, students watch). Chosen by the
+  -- teacher when the session starts; defaults to conference.
+  mode text not null default 'conference' check (mode in ('conference', 'streaming')),
   started_at timestamptz,
   ended_at timestamptz,
   created_at timestamptz not null default now()
