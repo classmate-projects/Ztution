@@ -1,12 +1,17 @@
 export type Role = "teacher" | "student";
-export type EnrollmentStatus = "assigned" | "active";
+export type EnrollmentStatus = "assigned" | "active" | "suspended";
 export type SessionStatus = "scheduled" | "live" | "ended";
+/**
+ * How a live session runs:
+ * - `conference`: everyone can share camera/mic (group discussion, mesh).
+ * - `streaming`: only the teacher broadcasts; students watch/listen.
+ */
+export type SessionMode = "conference" | "streaming";
 
 export interface UserRow {
   id: string;
   email: string;
   username: string;
-  password_hash: string;
   name: string;
   role: Role;
   stripe_customer_id: string | null;
@@ -32,6 +37,7 @@ export interface ClassSessionRow {
   title: string;
   scheduled_at: string;
   status: SessionStatus;
+  mode: SessionMode;
   started_at: string | null;
   ended_at: string | null;
   created_at: string;
@@ -40,6 +46,7 @@ export interface ClassSessionRow {
 export interface ClassRow {
   id: string;
   name: string;
+  payment_amount: number;
   teacher_id: string;
   created_at: string;
 }

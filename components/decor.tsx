@@ -1,47 +1,20 @@
-const DEFAULT_ICONS = ["📚", "✏️", "🎓", "⭐", "💡", "🧠"];
-
-interface Blob {
-  className: string;
-  color: string;
-  delay: string;
-  duration: string;
-}
-
-const BLOBS: Blob[] = [
-  { className: "-left-24 -top-24 h-96 w-96", color: "bg-violet-400/40 dark:bg-violet-500/25", delay: "0s", duration: "16s" },
-  { className: "-right-24 top-10 h-80 w-80", color: "bg-sky-400/35 dark:bg-sky-500/20", delay: "-5s", duration: "19s" },
-  { className: "bottom-[-6rem] left-1/3 h-96 w-96", color: "bg-rose-300/40 dark:bg-fuchsia-500/20", delay: "-9s", duration: "21s" },
-];
-
 /**
- * Purely decorative animated backdrop (blurred color blobs + bobbing subject
- * icons) for marketing/auth pages. Not used on dashboard pages — those stay
- * calmer since people are doing real work there.
+ * Backdrop for marketing/auth pages (landing, sign in, sign up) — the pages
+ * shown before login. These are always dark, regardless of the visitor's
+ * system theme; the light/dark switch is a post-login feature.
  */
-export function PageDecor({ icons = DEFAULT_ICONS }: { icons?: string[] }) {
+export function MarketingBackdrop() {
   return (
-    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
-      {BLOBS.map((blob, i) => (
-        <div
-          key={i}
-          className={`animate-blob absolute rounded-full blur-3xl ${blob.className} ${blob.color}`}
-          style={{ animationDelay: blob.delay, animationDuration: blob.duration }}
-        />
-      ))}
-      {icons.map((icon, i) => (
-        <span
-          key={icon + i}
-          className="animate-bob absolute text-3xl opacity-20 sm:text-4xl dark:opacity-25"
-          style={{
-            left: `${8 + ((i * 17) % 84)}%`,
-            top: `${10 + ((i * 29) % 70)}%`,
-            animationDelay: `${i * 0.9}s`,
-            animationDuration: `${5 + (i % 3)}s`,
-          }}
-        >
-          {icon}
-        </span>
-      ))}
+    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-zinc-950" aria-hidden="true">
+      <div
+        className="bg-grid-slate absolute inset-0"
+        style={{
+          maskImage: "radial-gradient(ellipse 70% 55% at 50% 0%, black 30%, transparent 85%)",
+          WebkitMaskImage: "radial-gradient(ellipse 70% 55% at 50% 0%, black 30%, transparent 85%)",
+        }}
+      />
+      <div className="animate-glow-pulse absolute left-1/2 top-[-14rem] h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-indigo-600/25 blur-[120px]" />
+      <div className="absolute bottom-[-12rem] right-[-8rem] h-[28rem] w-[28rem] rounded-full bg-blue-500/10 blur-[110px]" />
     </div>
   );
 }

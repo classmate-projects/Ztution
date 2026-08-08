@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/authorize";
+import { updateSession } from "@/lib/supabase/middleware";
 
 // Optimistic, fast-fail check only: rejects requests that carry no session at
 // all before they reach a route handler / page. This is NOT the source of
@@ -9,11 +9,15 @@ import { SESSION_COOKIE_NAME } from "@/lib/authorize";
 // so every API route still calls authenticate()/requirePermission() from
 // lib/authorize.ts, and dashboard pages call getSession() from lib/session.ts
 // themselves. See docs/app/getting-started/16-proxy.md.
-export function proxy(request: NextRequest) {
+//
+// Also does double duty as the Supabase session-refresh point: updateSession()
+// calls supabase.auth.getUser(), which transparently renews an expiring access
+// token and writes the refreshed cookies onto the response, so users stay
+// signed in across the refresh-token lifetime instead of hard-expiring.
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasSession =
-    Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value) ||
-    Boolean(request.headers.get("authorization")?.startsWith("Bearer "));
+  const { response, user } = await updateSession(request);
+  const hasSession = Boolean(user) || Boolean(request.headers.get("authorization")?.startsWith("Bearer "));
 
   if (pathname.startsWith("/api/")) {
     if (!hasSession) {
@@ -22,14 +26,14 @@ export function proxy(request: NextRequest) {
         { status: 401 }
       );
     }
-    return NextResponse.next();
+    return response;
   }
 
   if ((pathname.startsWith("/dashboard") || pathname.startsWith("/billing")) && !hasSession) {
     return NextResponse.redirect(new URL("/signin", request.url));
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

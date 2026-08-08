@@ -3,7 +3,7 @@ import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { authenticate, requirePermission } from "@/lib/authorize";
 import { assertEnrolled, assertOwnsClass, getClassOrThrow, getEnrollment } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { requireString, readJsonBody } from "@/lib/validate";
+import { requireString, optionalMoneyAmount, readJsonBody } from "@/lib/validate";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,10 +36,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     const body = await readJsonBody(request);
     const name = requireString(body.name, "name");
+    const paymentAmount = optionalMoneyAmount(body.paymentAmount, "paymentAmount");
 
     const { data, error } = await supabaseAdmin
       .from("classes")
-      .update({ name })
+      .update({ name, ...(paymentAmount !== undefined && { payment_amount: paymentAmount }) })
       .eq("id", id)
       .select("*")
       .single();

@@ -15,6 +15,29 @@ export function requireString(value: unknown, field: string): string {
   return value.trim();
 }
 
+/** Validates an optional non-negative money amount (accepts numbers or numeric strings). */
+export function optionalMoneyAmount(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const amount = typeof value === "string" ? Number(value.trim()) : value;
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) {
+    throw new ValidationError(`'${field}' must be a non-negative number`);
+  }
+  return amount;
+}
+
+/** Validates an optional value against a fixed set of allowed strings. */
+export function optionalEnum<T extends string>(
+  value: unknown,
+  field: string,
+  allowed: readonly T[]
+): T | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !allowed.includes(value as T)) {
+    throw new ValidationError(`'${field}' must be one of: ${allowed.join(", ")}`);
+  }
+  return value as T;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function requireEmail(value: unknown, field = "email"): string {
@@ -23,4 +46,22 @@ export function requireEmail(value: unknown, field = "email"): string {
     throw new ValidationError(`'${field}' must be a valid email address`);
   }
   return email.toLowerCase();
+}
+
+/** Validates a batch of emails (e.g. pasted comma-separated), deduping case-insensitively. */
+export function requireEmailList(value: unknown, field = "emails"): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ValidationError(`'${field}' must be a non-empty list of email addresses`);
+  }
+  const emails = value.map((entry) => {
+    if (typeof entry !== "string" || entry.trim().length === 0) {
+      throw new ValidationError(`'${field}' contains an empty entry`);
+    }
+    const email = entry.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      throw new ValidationError(`'${email}' is not a valid email address`);
+    }
+    return email;
+  });
+  return Array.from(new Set(emails));
 }

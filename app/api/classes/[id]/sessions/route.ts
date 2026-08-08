@@ -3,7 +3,10 @@ import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { authenticate, requirePermission } from "@/lib/authorize";
 import { assertEnrolled, assertOwnsClass, getClassOrThrow, getEnrollment } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { readJsonBody, requireString } from "@/lib/validate";
+import { readJsonBody, requireString, optionalEnum } from "@/lib/validate";
+import type { SessionMode } from "@/lib/supabase/types";
+
+const SESSION_MODES: readonly SessionMode[] = ["conference", "streaming"];
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const body = await readJsonBody(request);
     const title = requireString(body.title, "title");
+    const mode = optionalEnum<SessionMode>(body.mode, "mode", SESSION_MODES) ?? "conference";
 
     const now = new Date();
     const scheduledAt =
@@ -60,6 +64,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         class_id: id,
         teacher_id: user.userId,
         title,
+        mode,
         scheduled_at: scheduledAt.toISOString(),
         status: isInstant ? "live" : "scheduled",
         started_at: isInstant ? now.toISOString() : null,

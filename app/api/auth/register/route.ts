@@ -1,4 +1,3 @@
-import { hashPassword } from "@/lib/auth";
 import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { ValidationError } from "@/lib/authorize";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -39,16 +38,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const password_hash = await hashPassword(password);
-    const { data: user, error } = await supabaseAdmin
+    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true, // no email-verification step today; preserve instant login
+      user_metadata: { name, username },
+      app_metadata: { role: role as Role },
+    });
+
+    if (error || !created.user) {
+      throw new ValidationError(error?.message ?? "Failed to create user");
+    }
+
+    // public.users is populated by the handle_new_user trigger (supabase/schema.sql),
+    // but the trigger's `coalesce(new.raw_app_meta_data ->> 'role', 'student')` reads
+    // app_metadata as of the AFTER INSERT snapshot, which Supabase Auth apparently
+    // doesn't always populate synchronously with the INSERT — confirmed empirically
+    // (a createUser call with app_metadata.role: 'teacher' still landed as 'student'
+    // in public.users). Rather than depend on that timing, enforce the role we
+    // already know authoritatively here.
+    const { data: user, error: profileError } = await supabaseAdmin
       .from("users")
-      .insert({ name, username, email, password_hash, role: role as Role })
+      .update({ role: role as Role })
+      .eq("id", created.user.id)
       .select("id, name, username, email, role, created_at")
       .single();
-
-    if (error || !user) {
-      throw error ?? new Error("Failed to create user");
-    }
+    if (profileError) throw profileError;
 
     return apiSuccess("Account created successfully", { user }, 201);
   } catch (error) {

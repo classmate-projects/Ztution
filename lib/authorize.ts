@@ -1,14 +1,12 @@
 import type { NextRequest } from "next/server";
-import { InvalidTokenError, verifyToken, type AuthTokenPayload } from "./auth";
+import { toAuthPayload, type AuthTokenPayload } from "./auth";
+import { supabaseAdmin, createServerSupabaseClient } from "./supabase/server";
 import type { Role } from "./supabase/types";
 
 export class UnauthorizedError extends Error {}
 export class ForbiddenError extends Error {}
 export class ValidationError extends Error {}
 export class NotFoundError extends Error {}
-
-/** httpOnly cookie the browser flow uses instead of a bearer header. */
-export const SESSION_COOKIE_NAME = "ztution_session";
 
 /**
  * Single source of truth for what each role is allowed to do (see AGENTS.md
@@ -39,28 +37,36 @@ export function can(role: Role, permission: Permission): boolean {
 }
 
 /**
- * Extracts and verifies the session token — the httpOnly cookie set by the
- * browser login flow, or a `Bearer` header for direct API use (curl/Postman).
- * userId/role/email always come from the verified token payload, never from
- * client-supplied body/query fields — trusting a client-supplied role would
- * let a student self-escalate to teacher.
+ * Extracts and verifies the current Supabase Auth user — from the httpOnly
+ * session cookies set by the browser login flow, or a `Bearer` access token
+ * for direct API use (curl/Postman). userId/role/email always come from the
+ * verified Supabase user, never from client-supplied body/query fields —
+ * trusting a client-supplied role would let a student self-escalate to
+ * teacher.
  */
 export async function authenticate(request: NextRequest): Promise<AuthTokenPayload> {
-  const cookieToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const header = request.headers.get("authorization");
-  const headerToken = header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
-  const token = cookieToken || headerToken;
-  if (!token) {
-    throw new UnauthorizedError("Missing session cookie or Authorization header");
+  const bearerToken = header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
+
+  if (bearerToken) {
+    const {
+      data: { user },
+      error,
+    } = await supabaseAdmin.auth.getUser(bearerToken);
+    if (error || !user) throw new UnauthorizedError("Invalid or expired token");
+    const payload = toAuthPayload(user);
+    if (!payload) throw new UnauthorizedError("Token payload is malformed");
+    return payload;
   }
-  try {
-    return await verifyToken(token);
-  } catch (error) {
-    if (error instanceof InvalidTokenError) {
-      throw new UnauthorizedError(error.message);
-    }
-    throw error;
-  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new UnauthorizedError("Missing session cookie or Authorization header");
+  const payload = toAuthPayload(user);
+  if (!payload) throw new UnauthorizedError("Token payload is malformed");
+  return payload;
 }
 
 export function requirePermission(user: AuthTokenPayload, permission: Permission) {
