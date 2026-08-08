@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge, buttonClasses, Card } from "@/components/ui";
 import { InviteActions } from "@/components/dashboard";
+import { RealtimeClassRefresher } from "@/components/realtime-class";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, ClassStudentRow, MaterialRow } from "@/lib/supabase/types";
 
@@ -25,6 +26,7 @@ export function StudentClassView({ klass, sessions, materials, enrollment }: Pro
   if (enrollment.status === "suspended") {
     return (
       <div className="flex flex-col gap-6">
+        <RealtimeClassRefresher classId={klass.id} />
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">{klass.name}</h1>
           <Badge status={enrollment.status} />
@@ -40,6 +42,7 @@ export function StudentClassView({ klass, sessions, materials, enrollment }: Pro
 
   return (
     <div className="flex flex-col gap-8">
+      <RealtimeClassRefresher classId={klass.id} />
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{klass.name}</h1>
         {enrollment.status === "assigned" ? (

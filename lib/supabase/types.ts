@@ -39,6 +39,7 @@ export interface ClassSessionRow {
 export interface ClassRow {
   id: string;
   name: string;
+  payment_amount: number;
   teacher_id: string;
   created_at: string;
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
 import { Toast, useToast } from "@/components/toast";
 import { DateTimePicker } from "@/components/date-time-picker";
+import { RealtimeClassRefresher } from "@/components/realtime-class";
 import { formatDateTime, formatFileSize } from "@/lib/format";
 import type { ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, StudentEnrollmentRow } from "@/lib/supabase/types";
 
@@ -16,7 +17,7 @@ interface Props {
   students: StudentEnrollmentRow[];
 }
 
-type TabId = "sessions" | "students" | "materials";
+type TabId = "sessions" | "students" | "materials" | "settings";
 
 const SESSIONS_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
@@ -40,6 +41,13 @@ const MATERIALS_ICON = (
     <path d="M6 2.75h8.5L19 7.25V19.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 19.5v-15A1.75 1.75 0 0 1 6 2.75Z" />
     <path d="M14 2.75V7a1 1 0 0 0 1 1h4" />
     <path d="M8 12.5h8M8 16h5" />
+  </svg>
+);
+
+const SETTINGS_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
   </svg>
 );
 
@@ -68,14 +76,16 @@ const DELETE_ICON_BUTTON_CLASSES =
 export function TeacherClassView({ klass, sessions, materials, students }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("sessions");
 
-  const tabs: { id: TabId; label: string; count: number; icon: ReactNode }[] = [
+  const tabs: { id: TabId; label: string; count?: number; icon: ReactNode }[] = [
     { id: "sessions", label: "Class Sessions", count: sessions.length, icon: SESSIONS_ICON },
     { id: "students", label: "Students", count: students.length, icon: STUDENTS_ICON },
     { id: "materials", label: "Study Materials", count: materials.length, icon: MATERIALS_ICON },
+    { id: "settings", label: "Settings", icon: SETTINGS_ICON },
   ];
 
   return (
     <div className="flex flex-col gap-6">
+      <RealtimeClassRefresher classId={klass.id} />
       <h1 className="text-xl font-semibold">{klass.name}</h1>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -101,15 +111,17 @@ export function TeacherClassView({ klass, sessions, materials, students }: Props
                 {tab.icon}
               </span>
               <span className="flex-1 whitespace-nowrap text-left">{tab.label}</span>
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
-                  activeTab === tab.id
-                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
-                    : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
-                }`}
-              >
-                {tab.count}
-              </span>
+              {tab.count !== undefined && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                    activeTab === tab.id
+                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                      : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -118,6 +130,7 @@ export function TeacherClassView({ klass, sessions, materials, students }: Props
           {activeTab === "sessions" && <SessionsPanel classId={klass.id} sessions={sessions} />}
           {activeTab === "students" && <StudentsPanel classId={klass.id} students={students} />}
           {activeTab === "materials" && <MaterialsPanel classId={klass.id} materials={materials} />}
+          {activeTab === "settings" && <SettingsPanel klass={klass} />}
         </div>
       </div>
     </div>
@@ -432,6 +445,175 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
         </div>
       )}
     </section>
+  );
+}
+
+function SettingsPanel({ klass }: { klass: ClassRow }) {
+  const router = useRouter();
+  const [name, setName] = useState(klass.name);
+  const [paymentAmount, setPaymentAmount] = useState(
+    klass.payment_amount ? String(klass.payment_amount) : ""
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { message: toastMessage, toastKey, showToast, hideToast } = useToast();
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/classes/${klass.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, paymentAmount: paymentAmount === "" ? 0 : paymentAmount }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "Something went wrong");
+        return;
+      }
+      showToast("Class settings saved.");
+      router.refresh();
+    } catch {
+      setError("Network error — please try again");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteClass() {
+    setIsDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/classes/${klass.id}`, { method: "DELETE" });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "Something went wrong");
+        setConfirmOpen(false);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Network error — please try again");
+      setConfirmOpen(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      {toastMessage && <Toast key={toastKey} message={toastMessage} onClose={hideToast} />}
+
+      <h2 className="text-lg font-medium">Settings</h2>
+      <Card>
+        <form className="flex flex-col gap-4" onSubmit={save}>
+          <Field label="Class name" htmlFor="class-name">
+            <Input
+              id="class-name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+          <div>
+            <Field label="Payment amount" htmlFor="class-payment">
+              <Input
+                id="class-payment"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+            </Field>
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              The fee you expect from each student for this class.
+            </p>
+          </div>
+          <Button type="submit" disabled={isSaving || !name.trim()} className="self-start">
+            {isSaving ? "Saving…" : "Save changes"}
+          </Button>
+        </form>
+        <div className="mt-3">
+          <ErrorBanner message={error} />
+        </div>
+      </Card>
+
+      <Card className="border-red-200 dark:border-red-500/30">
+        <h3 className="font-medium text-red-700 dark:text-red-400">Danger zone</h3>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Deleting a class permanently removes its sessions, study materials, and student
+          enrollments. This can&apos;t be undone.
+        </p>
+        <Button
+          variant="danger"
+          className="mt-4"
+          onClick={() => setConfirmOpen(true)}
+          disabled={isDeleting}
+        >
+          Delete class
+        </Button>
+      </Card>
+
+      {confirmOpen && (
+        <ConfirmDialog
+          title="Delete this class?"
+          message={`"${klass.name}" and all of its sessions, materials, and student enrollments will be permanently deleted. This action can't be undone.`}
+          confirmLabel={isDeleting ? "Deleting…" : "Delete class"}
+          confirmDisabled={isDeleting}
+          onConfirm={deleteClass}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
+    </section>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  confirmDisabled,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirmDisabled?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button variant="secondary" onClick={onCancel} disabled={confirmDisabled}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={onConfirm} disabled={confirmDisabled}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

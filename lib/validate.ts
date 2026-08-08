@@ -15,6 +15,16 @@ export function requireString(value: unknown, field: string): string {
   return value.trim();
 }
 
+/** Validates an optional non-negative money amount (accepts numbers or numeric strings). */
+export function optionalMoneyAmount(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const amount = typeof value === "string" ? Number(value.trim()) : value;
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) {
+    throw new ValidationError(`'${field}' must be a non-negative number`);
+  }
+  return amount;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function requireEmail(value: unknown, field = "email"): string {

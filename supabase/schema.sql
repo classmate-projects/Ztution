@@ -66,6 +66,9 @@ create trigger on_auth_user_created
 create table classes (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  -- Monthly fee the teacher expects for this class, in the app's currency.
+  -- Defaults to 0 (unset) so existing flows that only send a name keep working.
+  payment_amount numeric not null default 0 check (payment_amount >= 0),
   teacher_id uuid not null references users (id) on delete cascade,
   created_at timestamptz not null default now()
 );
@@ -187,6 +190,78 @@ create policy "Users can view their own notifications"
 
 -- Required for postgres_changes subscriptions to fire on this table at all.
 alter publication supabase_realtime add table notifications;
+
+-- ---------------------------------------------------------------------------
+-- Live class pages (Realtime).
+-- The class detail page subscribes to Postgres Changes on the class row and
+-- its child tables so every viewer sees sessions/students/materials/settings
+-- update without a manual reload. Writes still go through the service-role key
+-- (which bypasses RLS), and page reads are server-side with that same key — so
+-- these SELECT policies exist ONLY to scope what the browser's Realtime socket
+-- (anon/authenticated role) is allowed to receive: a teacher sees their own
+-- classes, a student sees classes they're enrolled in.
+--
+-- REPLICA IDENTITY FULL puts the whole old row in DELETE/UPDATE events so RLS
+-- can be evaluated against columns that aren't in the primary key (e.g.
+-- class_id on a session/material delete).
+-- ---------------------------------------------------------------------------
+alter table classes enable row level security;
+alter table class_students enable row level security;
+alter table class_sessions enable row level security;
+alter table materials enable row level security;
+
+alter table classes replica identity full;
+alter table class_students replica identity full;
+alter table class_sessions replica identity full;
+alter table materials replica identity full;
+
+create policy "Read classes you teach or are enrolled in"
+  on classes for select
+  using (
+    teacher_id = auth.uid()
+    or exists (
+      select 1 from class_students cs
+      where cs.class_id = classes.id and cs.student_id = auth.uid()
+    )
+  );
+
+create policy "Read enrollments for your class or yourself"
+  on class_students for select
+  using (
+    student_id = auth.uid()
+    or exists (
+      select 1 from classes c
+      where c.id = class_students.class_id and c.teacher_id = auth.uid()
+    )
+  );
+
+create policy "Read sessions for classes you teach or are enrolled in"
+  on class_sessions for select
+  using (
+    exists (
+      select 1 from classes c
+      where c.id = class_sessions.class_id and c.teacher_id = auth.uid()
+    )
+    or exists (
+      select 1 from class_students cs
+      where cs.class_id = class_sessions.class_id and cs.student_id = auth.uid()
+    )
+  );
+
+create policy "Read materials for classes you teach or are enrolled in"
+  on materials for select
+  using (
+    exists (
+      select 1 from classes c
+      where c.id = materials.class_id and c.teacher_id = auth.uid()
+    )
+    or exists (
+      select 1 from class_students cs
+      where cs.class_id = materials.class_id and cs.student_id = auth.uid()
+    )
+  );
+
+alter publication supabase_realtime add table classes, class_students, class_sessions, materials;
 
 -- Private bucket for study material files. All reads/writes go through the
 -- server (service-role key) via our API routes, never directly from the
