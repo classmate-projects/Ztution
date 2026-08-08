@@ -3,8 +3,10 @@ import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { authenticate, requirePermission, NotFoundError, ValidationError } from "@/lib/authorize";
 import { assertOwnsClass, getClassOrThrow } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { readJsonBody } from "@/lib/validate";
-import type { SessionStatus } from "@/lib/supabase/types";
+import { readJsonBody, optionalEnum } from "@/lib/validate";
+import type { SessionMode, SessionStatus } from "@/lib/supabase/types";
+
+const SESSION_MODES: readonly SessionMode[] = ["conference", "streaming"];
 
 type Params = { params: Promise<{ id: string; sessionId: string }> };
 
@@ -44,12 +46,15 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       throw new ValidationError(`Cannot end a session with status '${session.status}'`);
     }
 
+    // Starting a scheduled session is when its call mode is chosen.
+    const mode = optionalEnum<SessionMode>(body.mode, "mode", SESSION_MODES);
+
     const now = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from("class_sessions")
       .update({
         status: TRANSITIONS[action],
-        ...(action === "start" ? { started_at: now } : { ended_at: now }),
+        ...(action === "start" ? { started_at: now, ...(mode && { mode }) } : { ended_at: now }),
       })
       .eq("id", sessionId)
       .select("*")

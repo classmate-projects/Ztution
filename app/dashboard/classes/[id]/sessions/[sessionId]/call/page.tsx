@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { getEnrollment } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { CallRoom } from "./CallRoom";
+import { StreamingRoom } from "./StreamingRoom";
 
 type Params = { params: Promise<{ id: string; sessionId: string }> };
 
@@ -36,12 +37,25 @@ export default async function CallPage({ params }: Params) {
     .eq("id", auth.userId)
     .maybeSingle();
 
+  const currentUser = { id: auth.userId, name: profile?.name ?? auth.email, role: auth.role };
+
+  if (callSession.mode === "streaming") {
+    return (
+      <StreamingRoom
+        classId={id}
+        classNameLabel={klass.name}
+        session={callSession}
+        currentUser={currentUser}
+      />
+    );
+  }
+
   return (
     <CallRoom
       classId={id}
       classNameLabel={klass.name}
       session={callSession}
-      currentUser={{ id: auth.userId, name: profile?.name ?? auth.email, role: auth.role }}
+      currentUser={currentUser}
     />
   );
 }

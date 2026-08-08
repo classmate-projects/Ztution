@@ -54,6 +54,10 @@ export default async function ClassDetailPage({ params }: Params) {
   const enrollment = await getEnrollment(id, session.userId);
   if (!enrollment) notFound();
 
+  if (enrollment.status === "suspended") {
+    return <StudentClassView klass={klass} sessions={[]} materials={[]} enrollment={enrollment} />;
+  }
+
   const [{ data: sessions }, { data: materials }] = await Promise.all([
     supabaseAdmin
       .from("class_sessions")
