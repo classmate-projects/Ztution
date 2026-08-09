@@ -63,7 +63,8 @@ export default async function ClassDetailPage({ params }: Params) {
       .from("class_sessions")
       .select("*")
       .eq("class_id", id)
-      .order("scheduled_at", { ascending: true }),
+      // Students see the most recent session first.
+      .order("scheduled_at", { ascending: false }),
     supabaseAdmin
       .from("materials")
       .select("*")
