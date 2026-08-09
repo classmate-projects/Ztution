@@ -435,50 +435,45 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
 
       <ErrorBanner message={connectionError} />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-        <div className="min-w-0 flex-1">
-          <div className="relative aspect-video overflow-hidden rounded-2xl bg-zinc-900">
-            {isTeacher ? (
-              <>
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`h-full w-full object-cover ${camOn ? "" : "hidden"}`}
-                  style={{ transform: "scaleX(-1)" }}
-                />
-                {!camOn && (
-                  <Placeholder name={currentUser.name} caption="Your camera is off" />
-                )}
-                <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
-                  {currentUser.name} (You)
-                </span>
-              </>
-            ) : teacherStream ? (
-              <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/70">
-                <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-                <span className="text-sm">
-                  {teacherLive ? "Connecting to the stream…" : "Waiting for the teacher to start…"}
-                </span>
-              </div>
-            )}
+      <div className="relative aspect-video overflow-hidden rounded-2xl bg-zinc-900">
+        {isTeacher ? (
+          <>
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`h-full w-full object-cover ${camOn ? "" : "hidden"}`}
+              style={{ transform: "scaleX(-1)" }}
+            />
+            {!camOn && <Placeholder name={currentUser.name} caption="Your camera is off" />}
+            <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+              {currentUser.name} (You)
+            </span>
+          </>
+        ) : teacherStream ? (
+          <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/70">
+            <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+            <span className="text-sm">
+              {teacherLive ? "Connecting to the stream…" : "Waiting for the teacher to start…"}
+            </span>
           </div>
-        </div>
-
-        {chatOpen && (
-          <ChatPanel
-            messages={messages}
-            currentUserId={currentUser.id}
-            value={chatInput}
-            onChange={setChatInput}
-            onSubmit={sendChat}
-            endRef={messagesEndRef}
-          />
         )}
       </div>
+
+      {chatOpen && (
+        <ChatPanel
+          messages={messages}
+          currentUserId={currentUser.id}
+          value={chatInput}
+          onChange={setChatInput}
+          onSubmit={sendChat}
+          onClose={() => setChatOpen(false)}
+          endRef={messagesEndRef}
+        />
+      )}
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         {isTeacher && (
@@ -553,6 +548,7 @@ function ChatPanel({
   value,
   onChange,
   onSubmit,
+  onClose,
   endRef,
 }: {
   messages: ChatMessage[];
@@ -560,12 +556,24 @@ function ChatPanel({
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e: FormEvent) => void;
+  onClose: () => void;
   endRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <aside className="flex h-80 w-full flex-col rounded-2xl border border-zinc-200 bg-white lg:h-auto lg:w-80 lg:shrink-0 dark:border-white/10 dark:bg-white/[0.03]">
-      <div className="border-b border-zinc-200 px-4 py-3 text-sm font-medium dark:border-white/10">
-        Chat
+    <aside className="fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900">
+      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">
+        <span className="text-sm font-medium">In-call messages</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close chat"
+          title="Close chat"
+          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-100"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+            <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {messages.length === 0 ? (
@@ -583,7 +591,7 @@ function ChatPanel({
                 {m.senderId === currentUserId ? "You" : m.senderName}
                 {m.senderRole === "teacher" ? " (Teacher)" : ""}
               </span>
-              <span className="ml-2 text-zinc-600 dark:text-zinc-300">{m.text}</span>
+              <span className="ml-2 break-words text-zinc-600 dark:text-zinc-300">{m.text}</span>
             </div>
           ))
         )}
@@ -593,7 +601,7 @@ function ChatPanel({
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Send a message…"
+          placeholder="Send a message to everyone"
           className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         />
         <Button type="submit" disabled={!value.trim()}>
