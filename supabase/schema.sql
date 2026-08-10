@@ -12,6 +12,7 @@
 create extension if not exists "pgcrypto";
 
 drop table if exists notifications cascade;
+drop table if exists chat_reads cascade;
 drop table if exists chat_reactions cascade;
 drop table if exists chat_messages cascade;
 drop table if exists chat_groups cascade;
@@ -212,6 +213,18 @@ create table chat_reactions (
   unique (message_id, user_id)
 );
 create index chat_reactions_message_id_idx on chat_reactions (message_id);
+
+-- Per-user read cursor for a group: last_read_at is bumped to now() whenever the
+-- user is viewing the group. Used two ways: unread counts in the sidebar
+-- (messages newer than last_read_at), and read receipts ("Message info" shows a
+-- member has seen a message when their last_read_at >= the message's created_at).
+create table chat_reads (
+  group_id uuid not null references chat_groups (id) on delete cascade,
+  user_id uuid not null references users (id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+create index chat_reads_user_id_idx on chat_reads (user_id);
 
 -- One row per student reflecting their *current* Stripe subscription state
 -- (kept in sync by the /api/webhooks/stripe handler) — not a payment history

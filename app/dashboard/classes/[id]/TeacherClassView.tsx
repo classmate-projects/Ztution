@@ -9,14 +9,14 @@ import { DateTimePicker } from "@/components/date-time-picker";
 import { RealtimeClassRefresher, broadcastClassRefresh } from "@/components/realtime-class";
 import { ChatGroupList, ChatPanel, NewChatDialog } from "@/components/class-chat";
 import { formatDateTime, formatFileSize } from "@/lib/format";
-import type { ChatGroupRow, ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, SessionMode, StudentEnrollmentRow } from "@/lib/supabase/types";
+import type { ChatGroupWithUnread, ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, SessionMode, StudentEnrollmentRow } from "@/lib/supabase/types";
 
 interface Props {
   klass: ClassRow;
   sessions: ClassSessionRow[];
   materials: MaterialRow[];
   students: StudentEnrollmentRow[];
-  chatGroups: ChatGroupRow[];
+  chatGroups: ChatGroupWithUnread[];
   currentUserId: string;
 }
 
@@ -106,6 +106,7 @@ export function TeacherClassView({ klass, sessions, materials, students, chatGro
 
   const activeChatGroup =
     view.kind === "chat" ? chatGroups.find((g) => g.id === view.groupId) ?? null : null;
+  const totalUnread = chatGroups.reduce((sum, g) => sum + g.unread, 0);
 
   function renderTab(tab: { id: TabId; label: string; count?: number; icon: ReactNode }) {
     const active = view.kind === "tab" && view.tab === tab.id;
@@ -164,16 +165,22 @@ export function TeacherClassView({ klass, sessions, materials, students, chatGro
               {CHATS_ICON}
             </span>
             <span className="flex-1 whitespace-nowrap text-left">Chats</span>
-            {chatGroups.length > 0 && (
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
-                  chatsActive
-                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
-                    : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
-                }`}
-              >
-                {chatGroups.length}
+            {totalUnread > 0 ? (
+              <span className="rounded-full bg-indigo-600 px-1.5 py-0.5 text-xs font-semibold text-white dark:bg-indigo-500">
+                {totalUnread}
               </span>
+            ) : (
+              chatGroups.length > 0 && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                    chatsActive
+                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                      : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+                  }`}
+                >
+                  {chatGroups.length}
+                </span>
+              )
             )}
             <span className={`text-zinc-400 transition-transform dark:text-zinc-500 ${chatsExpanded ? "rotate-90" : ""}`}>
               {CHEVRON_ICON}

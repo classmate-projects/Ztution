@@ -109,6 +109,18 @@ export interface ChatGroupRow {
   created_at: string;
 }
 
+/** A chat group plus the current user's unread message count. */
+export interface ChatGroupWithUnread extends ChatGroupRow {
+  unread: number;
+}
+
+/** One class member and whether they've seen a given message (read receipts). */
+export interface ChatMemberSeen {
+  id: string;
+  name: string;
+  seen: boolean;
+}
+
 export interface ChatMessageRow {
   id: string;
   group_id: string;

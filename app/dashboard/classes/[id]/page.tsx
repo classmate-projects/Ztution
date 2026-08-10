@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { getEnrollment } from "@/lib/resources";
+import { getEnrollment, listChatGroupsWithUnread } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import type { StudentEnrollmentRow } from "@/lib/supabase/types";
 import { TeacherClassView } from "./TeacherClassView";
@@ -19,7 +19,7 @@ export default async function ClassDetailPage({ params }: Params) {
   if (session.role === "teacher") {
     if (klass.teacher_id !== session.userId) notFound();
 
-    const [{ data: sessions }, { data: materials }, { data: students }, { data: chatGroups }] =
+    const [{ data: sessions }, { data: materials }, { data: students }, chatGroups] =
       await Promise.all([
         supabaseAdmin
           .from("class_sessions")
@@ -35,11 +35,7 @@ export default async function ClassDetailPage({ params }: Params) {
           .from("class_students")
           .select("status, assigned_at, joined_at, users(id, name, email)")
           .eq("class_id", id),
-        supabaseAdmin
-          .from("chat_groups")
-          .select("*")
-          .eq("class_id", id)
-          .order("created_at", { ascending: true }),
+        listChatGroupsWithUnread(id, session.userId),
       ]);
 
     // supabase-js can't infer this join is one-to-one without generated DB
@@ -53,7 +49,7 @@ export default async function ClassDetailPage({ params }: Params) {
         sessions={sessions ?? []}
         materials={materials ?? []}
         students={typedStudents}
-        chatGroups={chatGroups ?? []}
+        chatGroups={chatGroups}
         currentUserId={session.userId}
       />
     );
@@ -75,7 +71,7 @@ export default async function ClassDetailPage({ params }: Params) {
     );
   }
 
-  const [{ data: sessions }, { data: materials }, { data: chatGroups }] = await Promise.all([
+  const [{ data: sessions }, { data: materials }, chatGroups] = await Promise.all([
     supabaseAdmin
       .from("class_sessions")
       .select("*")
@@ -87,11 +83,7 @@ export default async function ClassDetailPage({ params }: Params) {
       .select("*")
       .eq("class_id", id)
       .order("created_at", { ascending: false }),
-    supabaseAdmin
-      .from("chat_groups")
-      .select("*")
-      .eq("class_id", id)
-      .order("created_at", { ascending: true }),
+    listChatGroupsWithUnread(id, session.userId),
   ]);
 
   return (
@@ -99,7 +91,7 @@ export default async function ClassDetailPage({ params }: Params) {
       klass={klass}
       sessions={sessions ?? []}
       materials={materials ?? []}
-      chatGroups={chatGroups ?? []}
+      chatGroups={chatGroups}
       enrollment={enrollment}
       currentUserId={session.userId}
     />

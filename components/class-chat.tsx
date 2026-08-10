@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -15,7 +17,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { broadcastClassRefresh } from "@/components/realtime-class";
 import { formatFileSize, initials } from "@/lib/format";
 import { CHAT_MESSAGE_TTL_DAYS, isWithinEditWindow } from "@/lib/chat";
-import type { ChatGroupRow, ChatMessageWithSender } from "@/lib/supabase/types";
+import type { ChatGroupRow, ChatMemberSeen, ChatMessageWithSender } from "@/lib/supabase/types";
 
 /** The four one-tap reactions; the "+" opens the rest. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮"];
@@ -118,8 +120,38 @@ const CHEVRON_RIGHT_ICON = (
   </svg>
 );
 
+const INFO_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-4 w-4">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5" strokeLinecap="round" />
+    <path d="M12 8h.01" strokeLinecap="round" />
+  </svg>
+);
+
+const DOUBLE_CHECK_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+    <path d="m1 13 4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m10 15 2 2 8-9" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function sameCalendarDay(a: string, b: string): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
+/** "Today" / "Yesterday" / "August 11, 2026" for a message's date separator. */
+function formatDayLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  if (sameCalendarDay(iso, now.toISOString())) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameCalendarDay(iso, yesterday.toISOString())) return "Yesterday";
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 }
 
 /**
@@ -134,7 +166,7 @@ export function ChatGroupList({
   canCreate,
   onNewChat,
 }: {
-  groups: ChatGroupRow[];
+  groups: (ChatGroupRow & { unread?: number })[];
   activeGroupId: string | null;
   onSelect: (groupId: string) => void;
   canCreate: boolean;
@@ -179,6 +211,11 @@ export function ChatGroupList({
               {initials(group.name)}
             </span>
             <span className="flex-1 truncate text-left">{group.name}</span>
+            {group.unread ? (
+              <span className="shrink-0 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-indigo-500">
+                {group.unread}
+              </span>
+            ) : null}
           </button>
         ))
       )}
@@ -303,6 +340,7 @@ export function ChatPanel({
   const [replyTo, setReplyTo] = useState<ChatMessageWithSender | null>(null);
   const [editing, setEditing] = useState<ChatMessageWithSender | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [newBelow, setNewBelow] = useState(false);
 
@@ -322,6 +360,20 @@ export function ChatPanel({
   const pingPeers = useCallback(() => {
     channelRef.current?.send({ type: "broadcast", event: "new", payload: {} });
   }, []);
+
+  // Advance this user's read cursor for the group. `refresh` re-pulls the page
+  // so the sidebar unread badge clears (used when the group is opened).
+  const markRead = useCallback(
+    async (refresh: boolean) => {
+      try {
+        await fetch(`/api/classes/${classId}/chat-groups/${groupId}/read`, { method: "POST" });
+        if (refresh) router.refresh();
+      } catch {
+        // Non-critical — the cursor just stays where it was.
+      }
+    },
+    [classId, groupId, router]
+  );
 
   // Attachments shared in this group, newest first — shown in the group-info panel.
   const mediaMessages = useMemo(
@@ -364,7 +416,11 @@ export function ChatPanel({
     const channel = supabase.channel(`chat:${groupId}`);
     channelRef.current = channel;
 
-    channel.on("broadcast", { event: "new" }, () => loadMessages());
+    channel.on("broadcast", { event: "new" }, () => {
+      loadMessages();
+      // We're viewing this group, so a new message here is already "read".
+      void markRead(false);
+    });
     channel.subscribe((status) => {
       // Load once the channel is ready (and on reconnect) so we never miss the
       // window between mount and subscribe. Also load if the socket errors out,
@@ -378,7 +434,12 @@ export function ChatPanel({
       channelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [groupId, loadMessages]);
+  }, [groupId, loadMessages, markRead]);
+
+  // Opening the group clears its unread badge (mark read + refresh the sidebar).
+  useEffect(() => {
+    void markRead(true);
+  }, [markRead]);
 
   const scrollToBottom = useCallback((smooth = true) => {
     const el = scrollRef.current;
@@ -560,8 +621,11 @@ export function ChatPanel({
       if (fileInputRef.current) fileInputRef.current.value = "";
       // We sent it — always follow the conversation down to our own message.
       forceScrollRef.current = true;
-      // Tell every other open client to refetch, then update our own view.
+      // Tell every other open client to refetch the messages, and every class
+      // viewer to re-pull so their sidebar unread badges update live.
       pingPeers();
+      void markRead(false);
+      void broadcastClassRefresh(classId);
       await loadMessages();
     } catch {
       setError("Network error — couldn't send message");
@@ -605,19 +669,33 @@ export function ChatPanel({
               No messages yet — say hello.
             </p>
           ) : (
-            messages.map((message) => (
-              <ChatMessageItem
-                key={message.id}
-                message={message}
-                isOwn={message.sender_id === currentUserId}
-                currentUserId={currentUserId}
-                onReact={(emoji) => toggleReaction(message.id, emoji)}
-                onReply={() => startReply(message)}
-                onEdit={() => startEdit(message)}
-                onDelete={() => deleteMessage(message.id)}
-                onJumpTo={jumpToMessage}
-              />
-            ))
+            messages.map((message, i) => {
+              const showDivider =
+                i === 0 || !sameCalendarDay(messages[i - 1].created_at, message.created_at);
+              return (
+                <Fragment key={message.id}>
+                  {showDivider && (
+                    <div className="flex justify-center py-1">
+                      <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-medium text-zinc-500 dark:bg-white/10 dark:text-zinc-400">
+                        {formatDayLabel(message.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <ChatMessageItem
+                    message={message}
+                    isOwn={message.sender_id === currentUserId}
+                    currentUserId={currentUserId}
+                    canSeeInfo={message.sender_id === currentUserId || isTeacher}
+                    onReact={(emoji) => toggleReaction(message.id, emoji)}
+                    onReply={() => startReply(message)}
+                    onEdit={() => startEdit(message)}
+                    onDelete={() => deleteMessage(message.id)}
+                    onInfo={() => setInfoMessageId(message.id)}
+                    onJumpTo={jumpToMessage}
+                  />
+                </Fragment>
+              );
+            })
           )}
         </div>
 
@@ -767,6 +845,134 @@ export function ChatPanel({
             void broadcastClassRefresh(classId);
           }}
         />
+      )}
+
+      {infoMessageId && (
+        <MessageInfoModal
+          classId={classId}
+          groupId={groupId}
+          messageId={infoMessageId}
+          onClose={() => setInfoMessageId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Read receipts for a message: who has and hasn't seen it. */
+function MessageInfoModal({
+  classId,
+  groupId,
+  messageId,
+  onClose,
+}: {
+  classId: string;
+  groupId: string;
+  messageId: string;
+  onClose: () => void;
+}) {
+  const [members, setMembers] = useState<ChatMemberSeen[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/classes/${classId}/chat-groups/${groupId}/messages/${messageId}/info`)
+      .then((r) => r.json())
+      .then((body) => {
+        if (!active) return;
+        if (body.data?.members) setMembers(body.data.members as ChatMemberSeen[]);
+        else setError(body.message ?? "Couldn't load message info");
+      })
+      .catch(() => active && setError("Network error — please try again"));
+    return () => {
+      active = false;
+    };
+  }, [classId, groupId, messageId]);
+
+  const seen = (members ?? []).filter((m) => m.seen);
+  const notSeen = (members ?? []).filter((m) => !m.seen);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[75vh] w-full max-w-xs flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">
+          <h3 className="text-sm font-semibold">Message info</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            aria-label="Close"
+          >
+            {CLOSE_ICON}
+          </button>
+        </div>
+        <div className="no-scrollbar flex-1 overflow-y-auto px-4 py-3">
+          {error ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          ) : members === null ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+          ) : (
+            <>
+              <MessageInfoSection
+                title="Seen by"
+                icon={
+                  <span className="text-indigo-500 dark:text-indigo-400">{DOUBLE_CHECK_ICON}</span>
+                }
+                people={seen}
+                empty="No one yet"
+              />
+              <MessageInfoSection
+                title="Not seen yet"
+                icon={<span className="text-zinc-400 dark:text-zinc-500">{DOUBLE_CHECK_ICON}</span>}
+                people={notSeen}
+                empty="Everyone has seen it"
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageInfoSection({
+  title,
+  icon,
+  people,
+  empty,
+}: {
+  title: string;
+  icon: ReactNode;
+  people: ChatMemberSeen[];
+  empty: string;
+}) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        {icon}
+        {title} ({people.length})
+      </div>
+      {people.length === 0 ? (
+        <p className="px-1 text-xs text-zinc-400 dark:text-zinc-500">{empty}</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {people.map((m) => (
+            <li key={m.id} className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-600 dark:bg-white/10 dark:text-zinc-300">
+                {initials(m.name)}
+              </span>
+              <span className="truncate text-sm">{m.name}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -1135,19 +1341,23 @@ function ChatMessageItem({
   message,
   isOwn,
   currentUserId,
+  canSeeInfo,
   onReact,
   onReply,
   onEdit,
   onDelete,
+  onInfo,
   onJumpTo,
 }: {
   message: ChatMessageWithSender;
   isOwn: boolean;
   currentUserId: string;
+  canSeeInfo: boolean;
   onReact: (emoji: string) => void;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onInfo: () => void;
   onJumpTo: (messageId: string) => void;
 }) {
   const senderName = message.sender?.name ?? "Unknown";
@@ -1395,6 +1605,19 @@ function ChatMessageItem({
                       {REPLY_ICON}
                       Reply
                     </button>
+                    {canSeeInfo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onInfo();
+                          closeAll();
+                        }}
+                        className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-white/10"
+                      >
+                        {INFO_ICON}
+                        Message info
+                      </button>
+                    )}
                     {canEdit && (
                       <button
                         type="button"
