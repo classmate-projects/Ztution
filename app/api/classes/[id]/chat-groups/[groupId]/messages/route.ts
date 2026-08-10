@@ -19,7 +19,7 @@ import { chatMessageCutoffIso } from "@/lib/chat";
 type Params = { params: Promise<{ id: string; groupId: string }> };
 
 const MESSAGE_SELECT =
-  "id, group_id, sender_id, body, attachment_name, attachment_mime, attachment_size, reply_to_id, reply_to_sender, reply_to_preview, created_at, sender:users(id, name, role), reactions:chat_reactions(user_id, emoji, user:users(id, name))";
+  "id, group_id, sender_id, body, attachment_name, attachment_mime, attachment_size, reply_to_id, reply_to_sender, reply_to_preview, edited_at, created_at, sender:users(id, name, role), reactions:chat_reactions(user_id, emoji, user:users(id, name))";
 
 /** Short single-line preview of a message, used to snapshot a reply quote. */
 function messagePreview(body: string | null, attachmentName: string | null): string {

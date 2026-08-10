@@ -42,20 +42,29 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (error) throw error;
     if (!message || message.group_id !== groupId) throw new NotFoundError("Message not found");
 
-    const { data: existing } = await supabaseAdmin
+    // A user gets at most ONE reaction per message. Clear whatever they had,
+    // then: same emoji → it just toggles off; different emoji → the new one
+    // replaces the old.
+    const { data: mine, error: mineError } = await supabaseAdmin
       .from("chat_reactions")
-      .select("id")
+      .select("id, emoji")
       .eq("message_id", messageId)
-      .eq("user_id", user.userId)
-      .eq("emoji", emoji)
-      .maybeSingle();
+      .eq("user_id", user.userId);
+    if (mineError) throw mineError;
 
-    if (existing) {
+    const hadSame = (mine ?? []).some((r) => r.emoji === emoji);
+
+    if (mine && mine.length > 0) {
       const { error: delError } = await supabaseAdmin
         .from("chat_reactions")
         .delete()
-        .eq("id", existing.id);
+        .eq("message_id", messageId)
+        .eq("user_id", user.userId);
       if (delError) throw delError;
+    }
+
+    if (hadSame) {
+      // Re-tapping the emoji they already had removes it.
       return apiSuccess("Reaction removed", { added: false });
     }
 

@@ -211,9 +211,9 @@ export function TeacherClassView({ klass, sessions, materials, students, chatGro
               <ChatPanel
                 key={activeChatGroup.id}
                 classId={klass.id}
-                groupId={activeChatGroup.id}
-                groupName={activeChatGroup.name}
+                group={activeChatGroup}
                 currentUserId={currentUserId}
+                isTeacher
               />
             ) : (
               <p className="text-sm text-zinc-600 dark:text-zinc-400">

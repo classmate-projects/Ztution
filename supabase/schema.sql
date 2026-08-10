@@ -192,21 +192,24 @@ create table chat_messages (
   reply_to_id uuid references chat_messages (id) on delete set null,
   reply_to_sender text,
   reply_to_preview text,
+  -- Set when the sender edits the text (within the edit window); the UI shows
+  -- an "edited" note. Null means never edited.
+  edited_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index chat_messages_group_id_idx on chat_messages (group_id, created_at);
 
--- Emoji reactions on a message. A user may add several different emojis to one
--- message, but each (message, user, emoji) is unique — reacting again with the
--- same emoji toggles it off. Read/written only through the service-role API, so
--- no RLS; realtime updates ride the same Broadcast ping as messages.
+-- Emoji reactions on a message. A user gets at most ONE reaction per message
+-- (unique on message_id, user_id): re-tapping the same emoji removes it, a
+-- different emoji replaces it. Read/written only through the service-role API,
+-- so no RLS; realtime updates ride the same Broadcast ping as messages.
 create table chat_reactions (
   id uuid primary key default gen_random_uuid(),
   message_id uuid not null references chat_messages (id) on delete cascade,
   user_id uuid not null references users (id) on delete cascade,
   emoji text not null,
   created_at timestamptz not null default now(),
-  unique (message_id, user_id, emoji)
+  unique (message_id, user_id)
 );
 create index chat_reactions_message_id_idx on chat_reactions (message_id);
 

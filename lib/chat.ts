@@ -10,3 +10,11 @@ export const CHAT_MESSAGE_TTL_DAYS = 7;
 export function chatMessageCutoffIso(): string {
   return new Date(Date.now() - CHAT_MESSAGE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 }
+
+/** A sender can edit their message only within this window after sending. */
+export const CHAT_EDIT_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/** Whether a message sent at `createdAtIso` is still inside the edit window. */
+export function isWithinEditWindow(createdAtIso: string): boolean {
+  return Date.now() - new Date(createdAtIso).getTime() < CHAT_EDIT_WINDOW_MS;
+}

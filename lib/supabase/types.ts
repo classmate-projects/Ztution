@@ -140,6 +140,7 @@ export interface ChatMessageWithSender {
   reply_to_id: string | null;
   reply_to_sender: string | null;
   reply_to_preview: string | null;
+  edited_at: string | null;
   created_at: string;
   sender: { id: string; name: string; role: Role } | null;
   reactions: ChatReactionRow[];

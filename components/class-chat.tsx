@@ -9,10 +9,12 @@ import {
   type FormEvent,
   type TouchEvent as ReactTouchEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import { Button, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { broadcastClassRefresh } from "@/components/realtime-class";
 import { formatFileSize, initials } from "@/lib/format";
-import { CHAT_MESSAGE_TTL_DAYS } from "@/lib/chat";
+import { CHAT_MESSAGE_TTL_DAYS, isWithinEditWindow } from "@/lib/chat";
 import type { ChatGroupRow, ChatMessageWithSender } from "@/lib/supabase/types";
 
 /** The four one-tap reactions; the "+" opens the rest. */
@@ -25,12 +27,6 @@ const MORE_REACTIONS = [
 const PLUS_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
     <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-  </svg>
-);
-
-const CHAT_BUBBLE_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
-    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5Z" />
   </svg>
 );
 
@@ -89,6 +85,19 @@ const TRASH_ICON = (
   </svg>
 );
 
+const PENCIL_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-4 w-4">
+    <path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.83-2.83L5 17.2V20Z" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13.5 6.5l4 4" strokeLinecap="round" />
+  </svg>
+);
+
+const CHEVRON_RIGHT_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+    <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
@@ -141,13 +150,13 @@ export function ChatGroupList({
             }`}
           >
             <span
-              className={
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
                 activeGroupId === group.id
-                  ? "text-indigo-600 dark:text-indigo-400"
-                  : "text-zinc-400 dark:text-zinc-500"
-              }
+                  ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                  : "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300"
+              }`}
             >
-              {CHAT_BUBBLE_ICON}
+              {initials(group.name)}
             </span>
             <span className="flex-1 truncate text-left">{group.name}</span>
           </button>
@@ -253,15 +262,18 @@ export function NewChatDialog({
  */
 export function ChatPanel({
   classId,
-  groupId,
-  groupName,
+  group,
   currentUserId,
+  isTeacher,
 }: {
   classId: string;
-  groupId: string;
-  groupName: string;
+  group: ChatGroupRow;
   currentUserId: string;
+  isTeacher: boolean;
 }) {
+  const groupId = group.id;
+  const groupName = group.name;
+
   const [messages, setMessages] = useState<ChatMessageWithSender[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -269,16 +281,33 @@ export function ChatPanel({
   const [file, setFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessageWithSender | null>(null);
+  const [editing, setEditing] = useState<ChatMessageWithSender | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
+  const [newBelow, setNewBelow] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const loadingRef = useRef(false);
   const channelRef = useRef<ReturnType<ReturnType<typeof createBrowserSupabaseClient>["channel"]> | null>(null);
+  const atBottomRef = useRef(true);
+  const initializedRef = useRef(false);
+  const prevLenRef = useRef(0);
+  const lastMsgIdRef = useRef<string | null>(null);
+  const forceScrollRef = useRef(false); // set when *we* send, so we always jump down
+
+  const router = useRouter();
 
   const pingPeers = useCallback(() => {
     channelRef.current?.send({ type: "broadcast", event: "new", payload: {} });
   }, []);
+
+  // Attachments shared in this group, newest first — shown in the group-info panel.
+  const mediaMessages = useMemo(
+    () => messages.filter((m) => m.attachment_name).slice().reverse(),
+    [messages]
+  );
 
   const loadMessages = useCallback(async () => {
     if (loadingRef.current) return;
@@ -331,16 +360,79 @@ export function ChatPanel({
     };
   }, [groupId, loadMessages]);
 
-  // Keep the newest message in view.
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    setNewBelow(false);
+  }, []);
+
+  // Track whether the viewer is parked at the bottom (within a small margin).
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const isBottom = distanceFromBottom < 80;
+    atBottomRef.current = isBottom;
+    setAtBottom(isBottom);
+    if (isBottom) setNewBelow(false);
+  }
+
+  // Decide how to react to a changed message list:
+  // - first load → jump straight to the newest (instant),
+  // - we just sent → always follow down (smooth),
+  // - a new message arrived while we're at the bottom → follow down (smooth),
+  // - a new message arrived while we're reading older messages → don't move,
+  //   just surface the "jump to latest" pill,
+  // - reactions/edits/deletes (no new message) → leave the scroll alone.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    if (!el) return;
+    const len = messages.length;
+    const newestId = len ? messages[len - 1].id : null;
+    const prevLen = prevLenRef.current;
+    const prevLastId = lastMsgIdRef.current;
+    prevLenRef.current = len;
+    lastMsgIdRef.current = newestId;
+
+    if (!initializedRef.current) {
+      if (len > 0) {
+        initializedRef.current = true;
+        el.scrollTop = el.scrollHeight;
+      }
+      return;
+    }
+
+    if (forceScrollRef.current) {
+      forceScrollRef.current = false;
+      requestAnimationFrame(() => scrollToBottom(true));
+      return;
+    }
+
+    const appended = len > prevLen && newestId !== prevLastId;
+    if (appended) {
+      if (atBottomRef.current) requestAnimationFrame(() => scrollToBottom(true));
+      else requestAnimationFrame(() => setNewBelow(true));
+    }
+  }, [messages, scrollToBottom]);
 
   const startReply = useCallback((message: ChatMessageWithSender) => {
     setReplyTo(message);
+    setEditing(null);
     // Let the reply banner render, then focus the composer.
     requestAnimationFrame(() => composerRef.current?.focus());
+  }, []);
+
+  const startEdit = useCallback((message: ChatMessageWithSender) => {
+    setEditing(message);
+    setReplyTo(null);
+    setText(message.body ?? "");
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(null);
+    setText("");
   }, []);
 
   const toggleReaction = useCallback(
@@ -393,6 +485,38 @@ export function ChatPanel({
 
   async function send(event: FormEvent) {
     event.preventDefault();
+
+    // Edit mode: PATCH the existing message instead of creating a new one.
+    if (editing) {
+      if (!text.trim() && !editing.attachment_name) return;
+      setIsSending(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/classes/${classId}/chat-groups/${groupId}/messages/${editing.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: text.trim() }),
+          }
+        );
+        const resBody = await res.json();
+        if (!res.ok) {
+          setError(resBody.message ?? "Couldn't edit message");
+          return;
+        }
+        setEditing(null);
+        setText("");
+        pingPeers();
+        await loadMessages();
+      } catch {
+        setError("Network error — couldn't edit message");
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     if (!text.trim() && !file) return;
     setIsSending(true);
     setError(null);
@@ -414,6 +538,8 @@ export function ChatPanel({
       setFile(null);
       setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      // We sent it — always follow the conversation down to our own message.
+      forceScrollRef.current = true;
       // Tell every other open client to refetch, then update our own view.
       pingPeers();
       await loadMessages();
@@ -425,37 +551,71 @@ export function ChatPanel({
   }
 
   return (
-    <div className="flex h-[70vh] min-h-[28rem] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-      <div className="border-b border-zinc-200 px-4 py-3 dark:border-white/10">
-        <div className="font-medium">{groupName}</div>
-        <div className="text-xs text-zinc-500 dark:text-zinc-400">
-          Messages disappear after {CHAT_MESSAGE_TTL_DAYS} days
-        </div>
-      </div>
-
-      <div
-        ref={scrollRef}
-        className="no-scrollbar flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-4 py-4"
+    // Sized to the space left under the dashboard header + page chrome so the
+    // composer is always visible and the *page* never scrolls — only the
+    // message list scrolls inside.
+    <div className="relative flex h-[calc(100dvh-12rem)] min-h-[26rem] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+      <button
+        type="button"
+        onClick={() => setInfoOpen(true)}
+        className="flex w-full items-center gap-3 border-b border-zinc-200 px-4 py-3 text-left transition-colors hover:bg-zinc-50 dark:border-white/10 dark:hover:bg-white/5"
       >
-        {isLoading ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading messages…</p>
-        ) : messages.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            No messages yet — say hello.
-          </p>
-        ) : (
-          messages.map((message) => (
-            <ChatMessageItem
-              key={message.id}
-              message={message}
-              isOwn={message.sender_id === currentUserId}
-              currentUserId={currentUserId}
-              onReact={(emoji) => toggleReaction(message.id, emoji)}
-              onReply={() => startReply(message)}
-              onDelete={() => deleteMessage(message.id)}
-              onJumpTo={jumpToMessage}
-            />
-          ))
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+          {initials(groupName)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{groupName}</div>
+          <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+            {group.description?.trim() ? group.description : "Tap to see group info"}
+          </div>
+        </div>
+        <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{CHEVRON_RIGHT_ICON}</span>
+      </button>
+
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="no-scrollbar h-full space-y-3 overflow-y-auto overflow-x-hidden px-4 py-4"
+        >
+          {isLoading ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading messages…</p>
+          ) : messages.length === 0 ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              No messages yet — say hello.
+            </p>
+          ) : (
+            messages.map((message) => (
+              <ChatMessageItem
+                key={message.id}
+                message={message}
+                isOwn={message.sender_id === currentUserId}
+                currentUserId={currentUserId}
+                onReact={(emoji) => toggleReaction(message.id, emoji)}
+                onReply={() => startReply(message)}
+                onEdit={() => startEdit(message)}
+                onDelete={() => deleteMessage(message.id)}
+                onJumpTo={jumpToMessage}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Jump-to-latest pill: appears when scrolled up, emphasised when new
+            messages arrived while away. */}
+        {!atBottom && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom(true)}
+            className={`animate-chat-pop absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg transition-colors ${
+              newBelow
+                ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            }`}
+          >
+            {CHEVRON_DOWN_ICON}
+            {newBelow ? "New messages" : "Jump to latest"}
+          </button>
         )}
       </div>
 
@@ -463,7 +623,28 @@ export function ChatPanel({
         onSubmit={send}
         className="border-t border-zinc-200 px-3 py-3 dark:border-white/10"
       >
-        {replyTo && (
+        {editing && (
+          <div className="mb-2 flex items-start gap-2 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 dark:bg-amber-400/10">
+            <span className="mt-0.5 text-amber-600 dark:text-amber-400">{PENCIL_ICON}</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                Editing message
+              </div>
+              <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {editing.body?.trim() ? editing.body : editing.attachment_name}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="cursor-pointer text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+              aria-label="Cancel edit"
+            >
+              {CLOSE_ICON}
+            </button>
+          </div>
+        )}
+        {replyTo && !editing && (
           <div className="mb-2 flex items-start gap-2 rounded-lg border-l-2 border-indigo-400 bg-zinc-100 px-3 py-2 dark:bg-white/10">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-indigo-600 dark:text-indigo-300">
@@ -487,7 +668,7 @@ export function ChatPanel({
             </button>
           </div>
         )}
-        {file && (
+        {file && !editing && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-sm dark:bg-white/10">
             <span className="text-zinc-500 dark:text-zinc-400">{FILE_ICON}</span>
             <span className="flex-1 truncate">{file.name}</span>
@@ -514,15 +695,17 @@ export function ChatPanel({
             className="hidden"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10"
-            title="Attach a file"
-            aria-label="Attach a file"
-          >
-            {PAPERCLIP_ICON}
-          </button>
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10"
+              title="Attach a file"
+              aria-label="Attach a file"
+            >
+              {PAPERCLIP_ICON}
+            </button>
+          )}
           <textarea
             ref={composerRef}
             rows={1}
@@ -534,12 +717,12 @@ export function ChatPanel({
                 send(e as unknown as FormEvent);
               }
             }}
-            placeholder="Type a message…"
+            placeholder={editing ? "Edit message…" : "Type a message…"}
             className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
           <button
             type="submit"
-            disabled={isSending || (!text.trim() && !file)}
+            disabled={isSending || (!text.trim() && !file && !editing)}
             className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
             title="Send"
             aria-label="Send message"
@@ -551,6 +734,264 @@ export function ChatPanel({
           <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>
         )}
       </form>
+
+      {infoOpen && (
+        <GroupInfoPanel
+          classId={classId}
+          group={group}
+          isTeacher={isTeacher}
+          media={mediaMessages}
+          onClose={() => setInfoOpen(false)}
+          onUpdated={() => {
+            router.refresh();
+            void broadcastClassRefresh(classId);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Slide-over group info: name, description, and the media shared in the group.
+ * Teachers get an inline editor for the name and description.
+ */
+function GroupInfoPanel({
+  classId,
+  group,
+  isTeacher,
+  media,
+  onClose,
+  onUpdated,
+}: {
+  classId: string;
+  group: ChatGroupRow;
+  isTeacher: boolean;
+  media: ChatMessageWithSender[];
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(group.name);
+  const [description, setDescription] = useState(group.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function deleteGroup() {
+    setIsDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/classes/${classId}/chat-groups/${group.id}`, {
+        method: "DELETE",
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "Couldn't delete group");
+        setConfirmDelete(false);
+        return;
+      }
+      // Group is gone: close the panel and refresh — the parent will drop back
+      // to the empty state, and other viewers get the broadcast too.
+      onClose();
+      onUpdated();
+    } catch {
+      setError("Network error — please try again");
+      setConfirmDelete(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/classes/${classId}/chat-groups/${group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "Couldn't save changes");
+        return;
+      }
+      setEditing(false);
+      onUpdated();
+    } catch {
+      setError("Network error — please try again");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const isImage = (mime: string | null) => !!mime && mime.startsWith("image/");
+
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-white dark:bg-zinc-900">
+      <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 dark:border-white/10">
+        <button
+          type="button"
+          onClick={onClose}
+          className="cursor-pointer text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+          aria-label="Close group info"
+        >
+          {CLOSE_ICON}
+        </button>
+        <h3 className="flex-1 text-sm font-semibold">Group info</h3>
+        {isTeacher && !editing && (
+          <button
+            type="button"
+            onClick={() => {
+              setName(group.name);
+              setDescription(group.description ?? "");
+              setEditing(true);
+            }}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+          >
+            {PENCIL_ICON}
+            Edit
+          </button>
+        )}
+      </div>
+
+      <div className="no-scrollbar flex-1 overflow-y-auto p-4">
+        {editing ? (
+          <form className="flex flex-col gap-4" onSubmit={save}>
+            <Field label="Chat name" htmlFor="group-info-name">
+              <Input
+                id="group-info-name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field label="Description" htmlFor="group-info-desc">
+              <Textarea
+                id="group-info-desc"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+            <ErrorBanner message={error} />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={isSaving || !name.trim()}>
+                {isSaving ? "Saving…" : "Save"}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-100 text-2xl font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+              {initials(group.name)}
+            </span>
+            <h2 className="text-xl font-semibold">{group.name}</h2>
+            <p className="max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
+              {group.description?.trim() ? group.description : "No description."}
+            </p>
+            <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-500 dark:bg-white/10 dark:text-zinc-400">
+              Messages disappear after {CHAT_MESSAGE_TTL_DAYS} days
+            </span>
+          </div>
+        )}
+
+        <div className="mt-6 border-t border-zinc-200 pt-5 dark:border-white/10">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Shared media ({media.length})
+          </h4>
+          {media.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-zinc-400 dark:text-zinc-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-9 w-9">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <circle cx="8.5" cy="9" r="1.5" />
+                <path d="m4 17 5-5 4 4 3-3 4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p className="text-sm">No media shared yet</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {media.map((m) => (
+                <a
+                  key={m.id}
+                  href={`/api/chat-attachments/${m.id}`}
+                  className="group/media flex aspect-square flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-center transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
+                  title={m.attachment_name ?? undefined}
+                >
+                  {isImage(m.attachment_mime) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/chat-attachments/${m.id}`}
+                      alt={m.attachment_name ?? "shared image"}
+                      className="h-full w-full rounded-md object-cover"
+                    />
+                  ) : (
+                    <>
+                      <span className="text-zinc-400 dark:text-zinc-500">{FILE_ICON}</span>
+                      <span className="line-clamp-2 w-full break-words px-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                        {m.attachment_name}
+                      </span>
+                    </>
+                  )}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {isTeacher && !editing && (
+          <div className="mt-6 border-t border-red-200 pt-5 dark:border-red-500/20">
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+            >
+              {TRASH_ICON}
+              Delete group
+            </button>
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Permanently deletes this chat and all of its messages and shared media.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {confirmDelete && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !isDeleting && setConfirmDelete(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">Delete this chat?</h3>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              &quot;{group.name}&quot; and all of its messages and shared media will be permanently
+              deleted. This can&apos;t be undone.
+            </p>
+            <div className="mt-3">
+              <ErrorBanner message={error} />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={isDeleting}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={deleteGroup} disabled={isDeleting}>
+                {isDeleting ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -576,6 +1017,7 @@ function ChatMessageItem({
   currentUserId,
   onReact,
   onReply,
+  onEdit,
   onDelete,
   onJumpTo,
 }: {
@@ -584,11 +1026,14 @@ function ChatMessageItem({
   currentUserId: string;
   onReact: (emoji: string) => void;
   onReply: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onJumpTo: (messageId: string) => void;
 }) {
   const senderName = message.sender?.name ?? "Unknown";
   const isTeacher = message.sender?.role === "teacher";
+  // Editing is the sender's own text within the time window.
+  const canEdit = isOwn && isWithinEditWindow(message.created_at);
   const reactions = useMemo(
     () => groupReactions(message.reactions, currentUserId),
     [message.reactions, currentUserId]
@@ -830,6 +1275,19 @@ function ChatMessageItem({
                       {REPLY_ICON}
                       Reply
                     </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onEdit();
+                          closeAll();
+                        }}
+                        className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-white/10"
+                      >
+                        {PENCIL_ICON}
+                        Edit
+                      </button>
+                    )}
                     {isOwn && (
                       <button
                         type="button"
@@ -927,6 +1385,7 @@ function ChatMessageItem({
               isOwn ? "text-right" : "text-left"
             }`}
           >
+            {message.edited_at && <span className="italic">edited · </span>}
             {formatTime(message.created_at)}
           </div>
         </div>

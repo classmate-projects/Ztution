@@ -25,7 +25,17 @@ export function RealtimeClassRefresher({ classId }: { classId: string }) {
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
     let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pgChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    // A dedicated, broadcast-only channel for explicit "re-pull" pings (used
+    // when a teacher creates/renames a chat group). It's kept SEPARATE from the
+    // postgres_changes channel below: broadcast delivery must not depend on the
+    // Realtime RLS socket being healthy — that's the same reason chat messages
+    // ride their own broadcast channel. See broadcastClassRefresh.
+    const refreshChannel = supabase
+      .channel(`class-refresh:${classId}`)
+      .on("broadcast", { event: "refresh" }, () => router.refresh());
+    refreshChannel.subscribe();
 
     const {
       data: { subscription: authSubscription },
@@ -53,18 +63,14 @@ export function RealtimeClassRefresher({ classId }: { classId: string }) {
         );
       }
 
-      // Broadcast fallback: a peer can explicitly ask everyone on this class to
-      // re-pull (used when a teacher creates a chat group), which doesn't rely
-      // on the Postgres-changes socket's RLS auth. See broadcastClassRefresh.
-      ch = ch.on("broadcast", { event: "refresh" }, () => router.refresh());
-
-      channel = ch.subscribe();
+      pgChannel = ch.subscribe();
     });
 
     return () => {
       cancelled = true;
       authSubscription.unsubscribe();
-      if (channel) supabase.removeChannel(channel);
+      supabase.removeChannel(refreshChannel);
+      if (pgChannel) supabase.removeChannel(pgChannel);
     };
   }, [classId, router]);
 
@@ -79,7 +85,7 @@ export function RealtimeClassRefresher({ classId }: { classId: string }) {
  */
 export async function broadcastClassRefresh(classId: string) {
   const supabase = createBrowserSupabaseClient();
-  const channel = supabase.channel(`class:${classId}`);
+  const channel = supabase.channel(`class-refresh:${classId}`);
   await new Promise<void>((resolve) => {
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") resolve();
