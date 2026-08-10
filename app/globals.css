@@ -72,9 +72,21 @@ input[type="password"]::-ms-clear {
   animation: fade-in-up 0.6s ease-out both;
 }
 
+/* Reaction chip / emoji "pop" when it appears. */
+@keyframes chat-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-chat-pop {
+  animation: chat-pop 0.18s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-glow-pulse,
-  .animate-fade-in-up {
+  .animate-fade-in-up,
+  .animate-chat-pop {
     animation: none;
   }
 }

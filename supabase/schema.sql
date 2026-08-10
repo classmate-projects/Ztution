@@ -12,6 +12,7 @@
 create extension if not exists "pgcrypto";
 
 drop table if exists notifications cascade;
+drop table if exists chat_reactions cascade;
 drop table if exists chat_messages cascade;
 drop table if exists chat_groups cascade;
 drop table if exists submissions cascade;
@@ -184,9 +185,30 @@ create table chat_messages (
   attachment_name text,
   attachment_mime text,
   attachment_size bigint,
+  -- Reply target (WhatsApp-style quote). reply_to_id points at the quoted
+  -- message (set null if it's later deleted/expired), but reply_to_sender and
+  -- reply_to_preview are snapshotted at send time so the quote survives even
+  -- after the original is gone.
+  reply_to_id uuid references chat_messages (id) on delete set null,
+  reply_to_sender text,
+  reply_to_preview text,
   created_at timestamptz not null default now()
 );
 create index chat_messages_group_id_idx on chat_messages (group_id, created_at);
+
+-- Emoji reactions on a message. A user may add several different emojis to one
+-- message, but each (message, user, emoji) is unique — reacting again with the
+-- same emoji toggles it off. Read/written only through the service-role API, so
+-- no RLS; realtime updates ride the same Broadcast ping as messages.
+create table chat_reactions (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references chat_messages (id) on delete cascade,
+  user_id uuid not null references users (id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id, emoji)
+);
+create index chat_reactions_message_id_idx on chat_reactions (message_id);
 
 -- One row per student reflecting their *current* Stripe subscription state
 -- (kept in sync by the /api/webhooks/stripe handler) — not a payment history

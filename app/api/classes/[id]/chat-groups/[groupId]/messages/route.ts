@@ -19,7 +19,17 @@ import { chatMessageCutoffIso } from "@/lib/chat";
 type Params = { params: Promise<{ id: string; groupId: string }> };
 
 const MESSAGE_SELECT =
-  "id, group_id, sender_id, body, attachment_name, attachment_mime, attachment_size, created_at, sender:users(id, name, role)";
+  "id, group_id, sender_id, body, attachment_name, attachment_mime, attachment_size, reply_to_id, reply_to_sender, reply_to_preview, created_at, sender:users(id, name, role), reactions:chat_reactions(user_id, emoji, user:users(id, name))";
+
+/** Short single-line preview of a message, used to snapshot a reply quote. */
+function messagePreview(body: string | null, attachmentName: string | null): string {
+  if (body && body.trim().length > 0) {
+    const flat = body.replace(/\s+/g, " ").trim();
+    return flat.length > 120 ? `${flat.slice(0, 120)}…` : flat;
+  }
+  if (attachmentName) return `📎 ${attachmentName}`;
+  return "";
+}
 
 /** Teacher owns the class, or the caller is an active enrolled student. */
 async function assertCanAccessClassChat(
@@ -109,6 +119,29 @@ export async function POST(request: NextRequest, { params }: Params) {
       throw new ValidationError("A message must include text, a file, or both");
     }
 
+    // Optional reply target — snapshot its sender/preview so the quote survives
+    // even if the original is later deleted or expires.
+    let replyToId: string | null = null;
+    let replyToSender: string | null = null;
+    let replyToPreview: string | null = null;
+    const rawReplyTo = formData.get("replyToId");
+    if (typeof rawReplyTo === "string" && rawReplyTo.trim().length > 0) {
+      const { data: target } = await supabaseAdmin
+        .from("chat_messages")
+        .select("id, group_id, body, attachment_name, sender:users(name)")
+        .eq("id", rawReplyTo.trim())
+        .maybeSingle();
+      if (target && target.group_id === groupId) {
+        const targetSender = target.sender as { name: string } | { name: string }[] | null;
+        const senderName = Array.isArray(targetSender)
+          ? targetSender[0]?.name
+          : targetSender?.name;
+        replyToId = target.id;
+        replyToSender = senderName ?? null;
+        replyToPreview = messagePreview(target.body, target.attachment_name);
+      }
+    }
+
     let attachmentPath: string | null = null;
     let attachmentName: string | null = null;
     let attachmentMime: string | null = null;
@@ -142,6 +175,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         attachment_name: attachmentName,
         attachment_mime: attachmentMime,
         attachment_size: attachmentSize,
+        reply_to_id: replyToId,
+        reply_to_sender: replyToSender,
+        reply_to_preview: replyToPreview,
       })
       .select(MESSAGE_SELECT)
       .single();

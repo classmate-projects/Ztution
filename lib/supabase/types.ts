@@ -122,7 +122,13 @@ export interface ChatMessageRow {
   created_at: string;
 }
 
-/** Shape of a `chat_messages` row selected with an embedded `sender:users(...)` join. */
+export interface ChatReactionRow {
+  user_id: string;
+  emoji: string;
+  user: { id: string; name: string } | null;
+}
+
+/** Shape of a `chat_messages` row selected with embedded sender + reactions. */
 export interface ChatMessageWithSender {
   id: string;
   group_id: string;
@@ -131,6 +137,10 @@ export interface ChatMessageWithSender {
   attachment_name: string | null;
   attachment_mime: string | null;
   attachment_size: number | null;
+  reply_to_id: string | null;
+  reply_to_sender: string | null;
+  reply_to_preview: string | null;
   created_at: string;
   sender: { id: string; name: string; role: Role } | null;
+  reactions: ChatReactionRow[];
 }
