@@ -26,8 +26,10 @@ export const PERMISSIONS = {
     "submission:evaluate",
     "session:create",
     "session:manage",
+    "chat:manage",
+    "chat:message",
   ],
-  student: ["class:join", "material:view", "assignment:submit", "billing:manage"],
+  student: ["class:join", "material:view", "assignment:submit", "billing:manage", "chat:message"],
 } as const satisfies Record<Role, readonly string[]>;
 
 export type Permission = (typeof PERMISSIONS)[Role][number];

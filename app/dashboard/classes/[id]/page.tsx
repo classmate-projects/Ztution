@@ -19,22 +19,28 @@ export default async function ClassDetailPage({ params }: Params) {
   if (session.role === "teacher") {
     if (klass.teacher_id !== session.userId) notFound();
 
-    const [{ data: sessions }, { data: materials }, { data: students }] = await Promise.all([
-      supabaseAdmin
-        .from("class_sessions")
-        .select("*")
-        .eq("class_id", id)
-        .order("scheduled_at", { ascending: true }),
-      supabaseAdmin
-        .from("materials")
-        .select("*")
-        .eq("class_id", id)
-        .order("created_at", { ascending: false }),
-      supabaseAdmin
-        .from("class_students")
-        .select("status, assigned_at, joined_at, users(id, name, email)")
-        .eq("class_id", id),
-    ]);
+    const [{ data: sessions }, { data: materials }, { data: students }, { data: chatGroups }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("class_sessions")
+          .select("*")
+          .eq("class_id", id)
+          .order("scheduled_at", { ascending: true }),
+        supabaseAdmin
+          .from("materials")
+          .select("*")
+          .eq("class_id", id)
+          .order("created_at", { ascending: false }),
+        supabaseAdmin
+          .from("class_students")
+          .select("status, assigned_at, joined_at, users(id, name, email)")
+          .eq("class_id", id),
+        supabaseAdmin
+          .from("chat_groups")
+          .select("*")
+          .eq("class_id", id)
+          .order("created_at", { ascending: true }),
+      ]);
 
     // supabase-js can't infer this join is one-to-one without generated DB
     // types (it defaults nested selects to arrays); it's a single row at
@@ -47,6 +53,8 @@ export default async function ClassDetailPage({ params }: Params) {
         sessions={sessions ?? []}
         materials={materials ?? []}
         students={typedStudents}
+        chatGroups={chatGroups ?? []}
+        currentUserId={session.userId}
       />
     );
   }
@@ -55,10 +63,19 @@ export default async function ClassDetailPage({ params }: Params) {
   if (!enrollment) notFound();
 
   if (enrollment.status === "suspended") {
-    return <StudentClassView klass={klass} sessions={[]} materials={[]} enrollment={enrollment} />;
+    return (
+      <StudentClassView
+        klass={klass}
+        sessions={[]}
+        materials={[]}
+        chatGroups={[]}
+        enrollment={enrollment}
+        currentUserId={session.userId}
+      />
+    );
   }
 
-  const [{ data: sessions }, { data: materials }] = await Promise.all([
+  const [{ data: sessions }, { data: materials }, { data: chatGroups }] = await Promise.all([
     supabaseAdmin
       .from("class_sessions")
       .select("*")
@@ -70,6 +87,11 @@ export default async function ClassDetailPage({ params }: Params) {
       .select("*")
       .eq("class_id", id)
       .order("created_at", { ascending: false }),
+    supabaseAdmin
+      .from("chat_groups")
+      .select("*")
+      .eq("class_id", id)
+      .order("created_at", { ascending: true }),
   ]);
 
   return (
@@ -77,7 +99,9 @@ export default async function ClassDetailPage({ params }: Params) {
       klass={klass}
       sessions={sessions ?? []}
       materials={materials ?? []}
+      chatGroups={chatGroups ?? []}
       enrollment={enrollment}
+      currentUserId={session.userId}
     />
   );
 }

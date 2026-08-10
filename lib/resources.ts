@@ -1,7 +1,7 @@
 import type { AuthTokenPayload } from "./auth";
 import { ForbiddenError, NotFoundError } from "./authorize";
 import { supabaseAdmin } from "./supabase/server";
-import type { AssignmentRow, ClassRow, ClassStudentRow } from "./supabase/types";
+import type { AssignmentRow, ChatGroupRow, ClassRow, ClassStudentRow } from "./supabase/types";
 
 export async function getClassOrThrow(classId: string): Promise<ClassRow> {
   const { data, error } = await supabaseAdmin
@@ -41,6 +41,24 @@ export function assertEnrolled(enrollment: ClassStudentRow | null) {
   if (enrollment.status === "suspended") {
     throw new ForbiddenError("Your access to this class has been suspended");
   }
+}
+
+/**
+ * Loads a chat group and asserts it belongs to `classId` — guards against a
+ * caller pairing a group id from one class with another class's route.
+ */
+export async function getChatGroupOrThrow(
+  groupId: string,
+  classId: string
+): Promise<ChatGroupRow> {
+  const { data, error } = await supabaseAdmin
+    .from("chat_groups")
+    .select("*")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.class_id !== classId) throw new NotFoundError("Chat group not found");
+  return data;
 }
 
 export async function getAssignmentOrThrow(assignmentId: string): Promise<AssignmentRow> {

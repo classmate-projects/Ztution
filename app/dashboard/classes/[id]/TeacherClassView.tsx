@@ -6,18 +6,24 @@ import Link from "next/link";
 import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
 import { Toast, useToast } from "@/components/toast";
 import { DateTimePicker } from "@/components/date-time-picker";
-import { RealtimeClassRefresher } from "@/components/realtime-class";
+import { RealtimeClassRefresher, broadcastClassRefresh } from "@/components/realtime-class";
+import { ChatGroupList, ChatPanel, NewChatDialog } from "@/components/class-chat";
 import { formatDateTime, formatFileSize } from "@/lib/format";
-import type { ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, SessionMode, StudentEnrollmentRow } from "@/lib/supabase/types";
+import type { ChatGroupRow, ClassRow, ClassSessionRow, EnrollmentStatus, MaterialRow, SessionMode, StudentEnrollmentRow } from "@/lib/supabase/types";
 
 interface Props {
   klass: ClassRow;
   sessions: ClassSessionRow[];
   materials: MaterialRow[];
   students: StudentEnrollmentRow[];
+  chatGroups: ChatGroupRow[];
+  currentUserId: string;
 }
 
 type TabId = "sessions" | "students" | "materials" | "settings";
+
+/** What's showing in the main panel: a top-level tab, or an open chat group. */
+type ClassNavView = { kind: "tab"; tab: TabId } | { kind: "chat"; groupId: string };
 
 const SESSIONS_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
@@ -51,6 +57,19 @@ const SETTINGS_ICON = (
   </svg>
 );
 
+const CHATS_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-4 w-4">
+    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5Z" />
+    <path d="M8 8.5h8M8 11.5h5" strokeLinecap="round" />
+  </svg>
+);
+
+const CHEVRON_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+    <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const DOWNLOAD_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
     <path d="M12 3v12m0 0-4-4m4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
@@ -73,15 +92,54 @@ const ICON_BUTTON_CLASSES =
 const DELETE_ICON_BUTTON_CLASSES =
   "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400";
 
-export function TeacherClassView({ klass, sessions, materials, students }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>("sessions");
+export function TeacherClassView({ klass, sessions, materials, students, chatGroups, currentUserId }: Props) {
+  const router = useRouter();
+  const [view, setView] = useState<ClassNavView>({ kind: "tab", tab: "sessions" });
+  const [chatsExpanded, setChatsExpanded] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
 
   const tabs: { id: TabId; label: string; count?: number; icon: ReactNode }[] = [
     { id: "sessions", label: "Class Sessions", count: sessions.length, icon: SESSIONS_ICON },
     { id: "students", label: "Students", count: students.length, icon: STUDENTS_ICON },
     { id: "materials", label: "Study Materials", count: materials.length, icon: MATERIALS_ICON },
-    { id: "settings", label: "Settings", icon: SETTINGS_ICON },
   ];
+
+  const activeChatGroup =
+    view.kind === "chat" ? chatGroups.find((g) => g.id === view.groupId) ?? null : null;
+
+  function renderTab(tab: { id: TabId; label: string; count?: number; icon: ReactNode }) {
+    const active = view.kind === "tab" && view.tab === tab.id;
+    return (
+      <button
+        key={tab.id}
+        type="button"
+        onClick={() => setView({ kind: "tab", tab: tab.id })}
+        className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
+          active
+            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+            : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
+        }`}
+      >
+        <span className={active ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500"}>
+          {tab.icon}
+        </span>
+        <span className="flex-1 whitespace-nowrap text-left">{tab.label}</span>
+        {tab.count !== undefined && (
+          <span
+            className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+              active
+                ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+            }`}
+          >
+            {tab.count}
+          </span>
+        )}
+      </button>
+    );
+  }
+
+  const chatsActive = view.kind === "chat";
 
   return (
     <div className="flex flex-col gap-6">
@@ -90,49 +148,95 @@ export function TeacherClassView({ klass, sessions, materials, students }: Props
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <nav className="flex gap-2 overflow-x-auto lg:w-56 lg:flex-none lg:flex-col lg:gap-1 lg:overflow-visible">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
-                activeTab === tab.id
-                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
-              }`}
-            >
+          {tabs.map(renderTab)}
+
+          {/* Chats — expands in place to list the class's chat groups. */}
+          <button
+            type="button"
+            onClick={() => setChatsExpanded((v) => !v)}
+            className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
+              chatsActive
+                ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
+            }`}
+          >
+            <span className={chatsActive ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500"}>
+              {CHATS_ICON}
+            </span>
+            <span className="flex-1 whitespace-nowrap text-left">Chats</span>
+            {chatGroups.length > 0 && (
               <span
-                className={
-                  activeTab === tab.id
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-zinc-400 dark:text-zinc-500"
-                }
+                className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                  chatsActive
+                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                    : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
+                }`}
               >
-                {tab.icon}
+                {chatGroups.length}
               </span>
-              <span className="flex-1 whitespace-nowrap text-left">{tab.label}</span>
-              {tab.count !== undefined && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
-                    activeTab === tab.id
-                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
-                      : "bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
+            )}
+            <span className={`text-zinc-400 transition-transform dark:text-zinc-500 ${chatsExpanded ? "rotate-90" : ""}`}>
+              {CHEVRON_ICON}
+            </span>
+          </button>
+
+          {chatsExpanded && (
+            <div className="pl-3 lg:pl-4">
+              <ChatGroupList
+                groups={chatGroups}
+                activeGroupId={view.kind === "chat" ? view.groupId : null}
+                onSelect={(groupId) => setView({ kind: "chat", groupId })}
+                canCreate
+                onNewChat={() => setNewChatOpen(true)}
+              />
+            </div>
+          )}
+
+          {renderTab({ id: "settings", label: "Settings", icon: SETTINGS_ICON })}
         </nav>
 
         <div className="min-w-0 flex-1">
-          {activeTab === "sessions" && <SessionsPanel classId={klass.id} sessions={sessions} />}
-          {activeTab === "students" && <StudentsPanel classId={klass.id} students={students} />}
-          {activeTab === "materials" && <MaterialsPanel classId={klass.id} materials={materials} />}
-          {activeTab === "settings" && <SettingsPanel klass={klass} />}
+          {view.kind === "tab" && view.tab === "sessions" && (
+            <SessionsPanel classId={klass.id} sessions={sessions} />
+          )}
+          {view.kind === "tab" && view.tab === "students" && (
+            <StudentsPanel classId={klass.id} students={students} />
+          )}
+          {view.kind === "tab" && view.tab === "materials" && (
+            <MaterialsPanel classId={klass.id} materials={materials} />
+          )}
+          {view.kind === "tab" && view.tab === "settings" && <SettingsPanel klass={klass} />}
+          {view.kind === "chat" &&
+            (activeChatGroup ? (
+              <ChatPanel
+                key={activeChatGroup.id}
+                classId={klass.id}
+                groupId={activeChatGroup.id}
+                groupName={activeChatGroup.name}
+                currentUserId={currentUserId}
+              />
+            ) : (
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Select a chat from the sidebar, or create a new one.
+              </p>
+            ))}
         </div>
       </div>
+
+      {newChatOpen && (
+        <NewChatDialog
+          classId={klass.id}
+          onClose={() => setNewChatOpen(false)}
+          onCreated={(group) => {
+            setNewChatOpen(false);
+            setChatsExpanded(true);
+            setView({ kind: "chat", groupId: group.id });
+            router.refresh();
+            // Nudge students already on this class page to re-pull and see it.
+            void broadcastClassRefresh(klass.id);
+          }}
+        />
+      )}
     </div>
   );
 }

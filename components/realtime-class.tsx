@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 /** Child tables that carry a `class_id` we can filter on directly. */
-const CLASS_ID_TABLES = ["class_sessions", "class_students", "materials"] as const;
+const CLASS_ID_TABLES = ["class_sessions", "class_students", "materials", "chat_groups"] as const;
 
 /**
  * Keeps a class page live for every viewer. Subscribes to Postgres Changes on
@@ -53,6 +53,11 @@ export function RealtimeClassRefresher({ classId }: { classId: string }) {
         );
       }
 
+      // Broadcast fallback: a peer can explicitly ask everyone on this class to
+      // re-pull (used when a teacher creates a chat group), which doesn't rely
+      // on the Postgres-changes socket's RLS auth. See broadcastClassRefresh.
+      ch = ch.on("broadcast", { event: "refresh" }, () => router.refresh());
+
       channel = ch.subscribe();
     });
 
@@ -64,4 +69,25 @@ export function RealtimeClassRefresher({ classId }: { classId: string }) {
   }, [classId, router]);
 
   return null;
+}
+
+/**
+ * Ask every open viewer of a class (via Broadcast) to re-pull the server
+ * component — their RealtimeClassRefresher listens for the "refresh" event.
+ * Use after a mutation whose Postgres-changes event may not reach other
+ * clients reliably (e.g. creating a chat group).
+ */
+export async function broadcastClassRefresh(classId: string) {
+  const supabase = createBrowserSupabaseClient();
+  const channel = supabase.channel(`class:${classId}`);
+  await new Promise<void>((resolve) => {
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") resolve();
+    });
+  });
+  await channel.send({ type: "broadcast", event: "refresh", payload: {} });
+  // Give the message time to flush before tearing the channel down.
+  setTimeout(() => {
+    supabase.removeChannel(channel);
+  }, 2000);
 }

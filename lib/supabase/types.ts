@@ -99,3 +99,38 @@ export interface SubmissionRow {
   feedback: string | null;
   evaluated_at: string | null;
 }
+
+export interface ChatGroupRow {
+  id: string;
+  class_id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface ChatMessageRow {
+  id: string;
+  group_id: string;
+  class_id: string;
+  sender_id: string;
+  body: string | null;
+  attachment_path: string | null;
+  attachment_name: string | null;
+  attachment_mime: string | null;
+  attachment_size: number | null;
+  created_at: string;
+}
+
+/** Shape of a `chat_messages` row selected with an embedded `sender:users(...)` join. */
+export interface ChatMessageWithSender {
+  id: string;
+  group_id: string;
+  sender_id: string;
+  body: string | null;
+  attachment_name: string | null;
+  attachment_mime: string | null;
+  attachment_size: number | null;
+  created_at: string;
+  sender: { id: string; name: string; role: Role } | null;
+}

@@ -12,6 +12,8 @@
 create extension if not exists "pgcrypto";
 
 drop table if exists notifications cascade;
+drop table if exists chat_messages cascade;
+drop table if exists chat_groups cascade;
 drop table if exists submissions cascade;
 drop table if exists assignments cascade;
 drop table if exists materials cascade;
@@ -148,6 +150,44 @@ create table submissions (
 create index submissions_assignment_id_idx on submissions (assignment_id);
 create index submissions_student_id_idx on submissions (student_id);
 
+-- Chat groups are teacher-created rooms inside a class where the teacher and all
+-- enrolled students can talk. Only the teacher can create a group (enforced in
+-- application code); everyone in the class can post messages to it.
+create table chat_groups (
+  id uuid primary key default gen_random_uuid(),
+  class_id uuid not null references classes (id) on delete cascade,
+  name text not null,
+  description text,
+  created_by uuid not null references users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create index chat_groups_class_id_idx on chat_groups (class_id);
+
+-- One row per chat message. `class_id` is denormalized from the group so the
+-- Realtime SELECT policy and the browser's per-class socket filter can match on
+-- it directly (mirrors how materials/class_sessions carry class_id). A message
+-- carries text (`body`), an attachment, or both — at least one is required,
+-- enforced in application code. Attachment files live in the 'chat-attachments'
+-- Storage bucket, referenced by attachment_path.
+--
+-- Messages are ephemeral: they expire 7 days after created_at. The messages API
+-- route filters reads to that window and lazily hard-deletes expired rows (and
+-- their storage attachments) on read, so no scheduled job is required. See
+-- lib/chat.ts (CHAT_MESSAGE_TTL_DAYS).
+create table chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references chat_groups (id) on delete cascade,
+  class_id uuid not null references classes (id) on delete cascade,
+  sender_id uuid not null references users (id) on delete cascade,
+  body text,
+  attachment_path text,
+  attachment_name text,
+  attachment_mime text,
+  attachment_size bigint,
+  created_at timestamptz not null default now()
+);
+create index chat_messages_group_id_idx on chat_messages (group_id, created_at);
+
 -- One row per student reflecting their *current* Stripe subscription state
 -- (kept in sync by the /api/webhooks/stripe handler) — not a payment history
 -- log. `status` mirrors Stripe's own subscription status strings directly
@@ -213,11 +253,15 @@ alter table classes enable row level security;
 alter table class_students enable row level security;
 alter table class_sessions enable row level security;
 alter table materials enable row level security;
+alter table chat_groups enable row level security;
+alter table chat_messages enable row level security;
 
 alter table classes replica identity full;
 alter table class_students replica identity full;
 alter table class_sessions replica identity full;
 alter table materials replica identity full;
+alter table chat_groups replica identity full;
+alter table chat_messages replica identity full;
 
 create policy "Read classes you teach or are enrolled in"
   on classes for select
@@ -265,11 +309,43 @@ create policy "Read materials for classes you teach or are enrolled in"
     )
   );
 
-alter publication supabase_realtime add table classes, class_students, class_sessions, materials;
+create policy "Read chat groups for classes you teach or are enrolled in"
+  on chat_groups for select
+  using (
+    exists (
+      select 1 from classes c
+      where c.id = chat_groups.class_id and c.teacher_id = auth.uid()
+    )
+    or exists (
+      select 1 from class_students cs
+      where cs.class_id = chat_groups.class_id and cs.student_id = auth.uid()
+    )
+  );
+
+create policy "Read chat messages for classes you teach or are enrolled in"
+  on chat_messages for select
+  using (
+    exists (
+      select 1 from classes c
+      where c.id = chat_messages.class_id and c.teacher_id = auth.uid()
+    )
+    or exists (
+      select 1 from class_students cs
+      where cs.class_id = chat_messages.class_id and cs.student_id = auth.uid()
+    )
+  );
+
+alter publication supabase_realtime add table classes, class_students, class_sessions, materials, chat_groups, chat_messages;
 
 -- Private bucket for study material files. All reads/writes go through the
 -- server (service-role key) via our API routes, never directly from the
 -- browser, so no storage RLS policies are needed here.
 insert into storage.buckets (id, name, public)
 values ('materials', 'materials', false)
+on conflict (id) do nothing;
+
+-- Private bucket for chat message attachments. Same access model as materials:
+-- all reads/writes go through the server (service-role key), never the browser.
+insert into storage.buckets (id, name, public)
+values ('chat-attachments', 'chat-attachments', false)
 on conflict (id) do nothing;
