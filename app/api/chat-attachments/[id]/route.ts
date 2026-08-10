@@ -29,11 +29,16 @@ export async function GET(request: NextRequest, { params }: Params) {
       assertEnrolled(await getEnrollment(message.class_id, user.userId));
     }
 
+    // `?download=1` forces a save (content-disposition: attachment); otherwise
+    // the file is served inline so the browser can preview it (PDF, image, …).
+    const forceDownload = request.nextUrl.searchParams.has("download");
     const { data: signed, error: signError } = await supabaseAdmin.storage
       .from(CHAT_ATTACHMENTS_BUCKET)
-      .createSignedUrl(message.attachment_path, 60, {
-        download: message.attachment_name ?? true,
-      });
+      .createSignedUrl(
+        message.attachment_path,
+        60,
+        forceDownload ? { download: message.attachment_name ?? true } : undefined
+      );
     if (signError || !signed) throw signError ?? new Error("Failed to create signed URL");
 
     return NextResponse.redirect(signed.signedUrl, 307);

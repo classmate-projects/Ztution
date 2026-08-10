@@ -53,6 +53,26 @@ const FILE_ICON = (
   </svg>
 );
 
+const FILE_BIG_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
+    <path d="M6 2.75h8.5L19 7.25V19.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 19.5v-15A1.75 1.75 0 0 1 6 2.75Z" />
+    <path d="M14 2.75V7a1 1 0 0 0 1 1h4" />
+  </svg>
+);
+
+const DOWNLOAD_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-4 w-4">
+    <path d="M12 3v12m0 0-4-4m4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const PLAY_ICON = (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+    <path d="M8 5.5v13l11-6.5-11-6.5Z" />
+  </svg>
+);
+
 const CLOSE_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
     <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
@@ -921,6 +941,8 @@ function GroupInfoPanel({
                 <a
                   key={m.id}
                   href={`/api/chat-attachments/${m.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group/media flex aspect-square flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-center transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
                   title={m.attachment_name ?? undefined}
                 >
@@ -992,6 +1014,104 @@ function GroupInfoPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const isImageMime = (mime: string | null) => !!mime && mime.startsWith("image/");
+const isVideoMime = (mime: string | null) => !!mime && mime.startsWith("video/");
+// Types a browser reliably renders in a tab (vs. forcing a download).
+const isInlineViewable = (mime: string | null) =>
+  mime === "application/pdf" || (!!mime && mime.startsWith("text/"));
+
+/**
+ * A message's attachment. Images and videos render as an inline preview with a
+ * corner download button and open full-size in a new tab on click. Other files
+ * show as a card (icon, name, size); clicking opens viewable types (PDF/text)
+ * in a new tab and downloads the rest, and a separate download button is always
+ * available.
+ */
+function MessageAttachment({
+  message,
+  isOwn,
+}: {
+  message: ChatMessageWithSender;
+  isOwn: boolean;
+}) {
+  const mime = message.attachment_mime;
+  const name = message.attachment_name ?? "file";
+  const size = message.attachment_size;
+  const inlineUrl = `/api/chat-attachments/${message.id}`;
+  const downloadUrl = `${inlineUrl}?download=1`;
+  const spacing = message.body ? "mt-1.5" : "";
+
+  if (isImageMime(mime) || isVideoMime(mime)) {
+    return (
+      // Fixed width + aspect ratio so every image/video preview is the same
+      // size (cropped to fill), keeping the thread visually uniform.
+      <div className={`relative w-52 max-w-full overflow-hidden rounded-lg ${spacing}`}>
+        <a href={inlineUrl} target="_blank" rel="noopener noreferrer" className="block aspect-[4/3]">
+          {isImageMime(mime) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={inlineUrl} alt={name} className="h-full w-full object-cover" />
+          ) : (
+            <video
+              src={inlineUrl}
+              preload="metadata"
+              muted
+              playsInline
+              className="h-full w-full bg-black/80 object-cover"
+            />
+          )}
+        </a>
+        {isVideoMime(mime) && (
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white">
+              {PLAY_ICON}
+            </span>
+          </span>
+        )}
+        <a
+          href={downloadUrl}
+          className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-black/75"
+          title="Download"
+          aria-label="Download"
+        >
+          {DOWNLOAD_ICON}
+        </a>
+      </div>
+    );
+  }
+
+  const openInline = isInlineViewable(mime);
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg p-1.5 ${
+        isOwn ? "bg-white/15" : "bg-black/5 dark:bg-white/10"
+      } ${spacing}`}
+    >
+      <a
+        href={openInline ? inlineUrl : downloadUrl}
+        target={openInline ? "_blank" : undefined}
+        rel={openInline ? "noopener noreferrer" : undefined}
+        className="flex min-w-0 flex-1 items-center gap-2.5"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/10 dark:bg-white/10">
+          {FILE_BIG_ICON}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">{name}</span>
+          {size ? <span className="block text-xs opacity-70">{formatFileSize(size)}</span> : null}
+        </span>
+      </a>
+      <a
+        href={downloadUrl}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+        title="Download"
+        aria-label="Download"
+      >
+        {DOWNLOAD_ICON}
+      </a>
     </div>
   );
 }
@@ -1327,22 +1447,7 @@ function ChatMessageItem({
 
               {message.body && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
               {message.attachment_name && (
-                <a
-                  href={`/api/chat-attachments/${message.id}`}
-                  className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors ${
-                    isOwn
-                      ? "bg-white/15 hover:bg-white/25"
-                      : "bg-white/70 hover:bg-white dark:bg-white/10 dark:hover:bg-white/20"
-                  } ${message.body ? "mt-1.5" : ""}`}
-                >
-                  {FILE_ICON}
-                  <span className="truncate">{message.attachment_name}</span>
-                  {message.attachment_size ? (
-                    <span className="shrink-0 text-xs opacity-70">
-                      {formatFileSize(message.attachment_size)}
-                    </span>
-                  ) : null}
-                </a>
+                <MessageAttachment message={message} isOwn={isOwn} />
               )}
             </div>
 
