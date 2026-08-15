@@ -124,6 +124,14 @@ export const MORE_ICON = (
   </svg>
 );
 
+const REPLY_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+    <path d="M9 7 4 12l5 5M4 12h10a6 6 0 0 1 6 6v1" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮"];
+
 /** Used in the "N watching" style badge — a count of viewers, not participants. */
 export const EYE_ICON = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5">
@@ -239,6 +247,12 @@ export function HangupButton({ onClick, label, disabled }: { onClick: () => void
   );
 }
 
+export interface CallReaction {
+  emoji: string;
+  userId: string;
+  userName: string;
+}
+
 export interface CallMessage {
   id: string;
   senderId: string;
@@ -248,6 +262,8 @@ export interface CallMessage {
   at: number;
   // Join/leave notices — rendered as a centered notice instead of a chat line.
   system?: boolean;
+  replyTo?: { id: string; senderName: string; text: string } | null;
+  reactions?: CallReaction[];
 }
 
 /** Slide-over panel for ephemeral in-call text (chat / comments). Not persisted. */
@@ -261,6 +277,10 @@ export function MessagePanel({
   onSubmit,
   onClose,
   endRef,
+  onReact,
+  replyTo,
+  onReply,
+  onCancelReply,
 }: {
   title: string;
   placeholder: string;
@@ -271,6 +291,10 @@ export function MessagePanel({
   onSubmit: (e: FormEvent) => void;
   onClose: () => void;
   endRef: React.RefObject<HTMLDivElement | null>;
+  onReact: (messageId: string, emoji: string) => void;
+  replyTo: CallMessage | null;
+  onReply: (message: CallMessage) => void;
+  onCancelReply: () => void;
 }) {
   return (
     <aside className="absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900">
@@ -288,34 +312,61 @@ export function MessagePanel({
           </svg>
         </button>
       </div>
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+      <div className="no-scrollbar flex-1 overflow-y-auto px-3 py-3">
         {messages.length === 0 ? (
-          <p className="text-sm text-zinc-400 dark:text-zinc-500">No messages yet.</p>
+          <p className="px-1 text-sm text-zinc-400 dark:text-zinc-500">No messages yet.</p>
         ) : (
-          messages.map((m) =>
-            m.system ? (
-              <p key={m.id} className="text-center text-xs italic text-zinc-400 dark:text-zinc-500">
-                {m.text}
-              </p>
-            ) : (
-              <div key={m.id} className="text-sm">
-                <span
-                  className={`font-medium ${
-                    m.senderId === currentUserId
-                      ? "text-indigo-600 dark:text-indigo-400"
-                      : "text-zinc-700 dark:text-zinc-200"
-                  }`}
-                >
-                  {m.senderId === currentUserId ? "You" : m.senderName}
-                  {m.senderRole === "teacher" ? " (Teacher)" : ""}
-                </span>
-                <span className="ml-2 break-words text-zinc-600 dark:text-zinc-300">{m.text}</span>
-              </div>
-            )
-          )
+          messages.map((m, i) => {
+            if (m.system) {
+              return (
+                <p key={m.id} className="py-1 text-center text-xs italic text-zinc-400 dark:text-zinc-500">
+                  {m.text}
+                </p>
+              );
+            }
+            const isOwn = m.senderId === currentUserId;
+            // Only repeat the sender's name when it changes from the previous
+            // bubble, so a run of messages from the same person reads as one
+            // group instead of a name on every line.
+            const prev = messages[i - 1];
+            const showName = !isOwn && (!prev || prev.system || prev.senderId !== m.senderId);
+            return (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                isOwn={isOwn}
+                showName={showName}
+                currentUserId={currentUserId}
+                onReact={(emoji) => onReact(m.id, emoji)}
+                onReply={() => onReply(m)}
+              />
+            );
+          })
         )}
         <div ref={endRef} />
       </div>
+      {replyTo && (
+        <div className="flex items-center gap-2 border-t border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/[0.03]">
+          <span className="text-indigo-500 dark:text-indigo-400">{REPLY_ICON}</span>
+          <div className="min-w-0 flex-1">
+            <span className="font-medium text-zinc-600 dark:text-zinc-300">
+              Replying to {replyTo.senderId === currentUserId ? "yourself" : replyTo.senderName}
+            </span>
+            <p className="truncate text-zinc-400 dark:text-zinc-500">{replyTo.text}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label="Cancel reply"
+            title="Cancel reply"
+            className="shrink-0 cursor-pointer rounded-full p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+              <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
       <form onSubmit={onSubmit} className="flex gap-2 border-t border-zinc-200 p-3 dark:border-white/10">
         <input
           value={value}
@@ -328,5 +379,243 @@ export function MessagePanel({
         </Button>
       </form>
     </aside>
+  );
+}
+
+// Top emoji types by popularity — the summary pill shows at most 3, tap for
+// the full "who reacted" list.
+function topCallReactions(reactions: CallReaction[]) {
+  const counts = new Map<string, number>();
+  for (const r of reactions) counts.set(r.emoji, (counts.get(r.emoji) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([emoji, count]) => ({ emoji, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+}
+
+function MessageBubble({
+  message,
+  isOwn,
+  showName,
+  currentUserId,
+  onReact,
+  onReply,
+}: {
+  message: CallMessage;
+  isOwn: boolean;
+  showName: boolean;
+  currentUserId: string;
+  onReact: (emoji: string) => void;
+  onReply: () => void;
+}) {
+  const [showActions, setShowActions] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const reactions = message.reactions ?? [];
+  const myReaction = reactions.find((r) => r.userId === currentUserId);
+  const topReactions = topCallReactions(reactions);
+  const sideAlign = isOwn ? "right-0" : "left-0";
+
+  return (
+    <div className={`flex flex-col pb-1 ${isOwn ? "items-end" : "items-start"}`}>
+      {showName && (
+        <span className="mb-0.5 px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          {message.senderName}
+          {message.senderRole === "teacher" ? " · Teacher" : ""}
+        </span>
+      )}
+
+      <div
+        className="relative max-w-[85%]"
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+      >
+        {/* Dismiss layer for touch (tapping the bubble toggles the tray below). */}
+        {showActions && <div className="fixed inset-0 z-10 sm:hidden" onClick={() => setShowActions(false)} />}
+
+        {/* Reply + quick-reaction tray, revealed on hover (desktop) or tap (touch). */}
+        <div
+          className={`absolute bottom-full ${sideAlign} z-20 origin-bottom pb-1 transition-all duration-150 ${
+            showActions
+              ? "translate-y-0 scale-100 opacity-100"
+              : "pointer-events-none translate-y-1 scale-90 opacity-0"
+          }`}
+        >
+          <div className="flex items-center gap-0.5 rounded-full border border-zinc-200 bg-white px-1 py-1 shadow-lg dark:border-white/10 dark:bg-zinc-800">
+            {QUICK_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  onReact(emoji);
+                  setShowActions(false);
+                }}
+                className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-base transition-transform hover:scale-125 ${
+                  myReaction?.emoji === emoji
+                    ? "bg-indigo-100 ring-1 ring-indigo-400 dark:bg-indigo-500/25"
+                    : "hover:bg-zinc-100 dark:hover:bg-white/10"
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+            <span className="mx-0.5 h-4 w-px bg-zinc-200 dark:bg-white/10" />
+            <button
+              type="button"
+              onClick={() => {
+                onReply();
+                setShowActions(false);
+              }}
+              title="Reply"
+              aria-label="Reply"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/10"
+            >
+              {REPLY_ICON}
+            </button>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setShowActions((v) => !v)}
+          className={`cursor-pointer whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
+            isOwn
+              ? "rounded-br-sm bg-indigo-600 text-white"
+              : "rounded-bl-sm bg-zinc-100 text-zinc-800 dark:bg-white/10 dark:text-zinc-100"
+          }`}
+        >
+          {message.replyTo && (
+            <div
+              className={`mb-1 rounded-lg border-l-2 px-2 py-1 text-xs ${
+                isOwn
+                  ? "border-white/40 bg-white/10 text-white/80"
+                  : "border-indigo-400 bg-black/5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400"
+              }`}
+            >
+              <p className="font-medium">{message.replyTo.senderName}</p>
+              <p className="truncate">{message.replyTo.text}</p>
+            </div>
+          )}
+          {message.text}
+        </div>
+      </div>
+
+      {/* Reaction summary: top 3 emoji + total count in one pill. Tap to see
+          who reacted (and remove your own); if you're the only reactor, tap
+          removes it directly instead of opening the list for just yourself. */}
+      {reactions.length > 0 && (
+        <div className={`mt-1 flex ${isOwn ? "justify-end" : "justify-start"}`}>
+          <button
+            type="button"
+            onClick={() => {
+              const onlyMine = reactions.length === 1 && myReaction;
+              if (onlyMine) onReact(myReaction.emoji);
+              else setDetailsOpen(true);
+            }}
+            aria-label="See who reacted"
+            className={`animate-chat-pop flex cursor-pointer items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs transition-colors ${
+              myReaction
+                ? "border-indigo-300 bg-indigo-50 dark:border-indigo-400/40 dark:bg-indigo-500/20"
+                : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            }`}
+          >
+            {topReactions.map((r) => (
+              <span key={r.emoji}>{r.emoji}</span>
+            ))}
+            {reactions.length > 1 && (
+              <span className="ml-0.5 tabular-nums text-zinc-500 dark:text-zinc-400">{reactions.length}</span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {detailsOpen && (
+        <ReactionDetails
+          reactions={reactions}
+          currentUserId={currentUserId}
+          onRemove={(emoji) => {
+            onReact(emoji);
+            setDetailsOpen(false);
+          }}
+          onClose={() => setDetailsOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Who reacted" sheet — lists every reactor with their emoji, most-popular
+ * emoji first. The current user's own reaction is tappable to remove.
+ */
+function ReactionDetails({
+  reactions,
+  currentUserId,
+  onRemove,
+  onClose,
+}: {
+  reactions: CallReaction[];
+  currentUserId: string;
+  onRemove: (emoji: string) => void;
+  onClose: () => void;
+}) {
+  const counts = new Map<string, number>();
+  for (const r of reactions) counts.set(r.emoji, (counts.get(r.emoji) ?? 0) + 1);
+  const rows = [...reactions].sort((a, b) => (counts.get(b.emoji) ?? 0) - (counts.get(a.emoji) ?? 0));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[70vh] w-full max-w-xs overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">
+          <h3 className="text-sm font-semibold">Reactions</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="cursor-pointer text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+              <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div className="no-scrollbar max-h-[calc(70vh-3rem)] overflow-y-auto py-1">
+          {rows.map((r) => {
+            const mine = r.userId === currentUserId;
+            return (
+              <button
+                key={`${r.userId}-${r.emoji}`}
+                type="button"
+                disabled={!mine}
+                onClick={() => mine && onRemove(r.emoji)}
+                className={`flex w-full items-center gap-3 px-4 py-2 text-left ${
+                  mine ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-white/5" : "cursor-default"
+                }`}
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-600 dark:bg-white/10 dark:text-zinc-300">
+                  {initials(r.userName)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {r.userName}
+                    {mine && <span className="text-zinc-400 dark:text-zinc-500"> (You)</span>}
+                  </span>
+                  {mine && (
+                    <span className="text-xs text-indigo-600 dark:text-indigo-400">Tap to remove</span>
+                  )}
+                </span>
+                <span className="text-lg">{r.emoji}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

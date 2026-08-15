@@ -85,6 +85,7 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<CallMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [replyTo, setReplyTo] = useState<CallMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const controlsActive = useAutoHideControls(stageRef);
@@ -305,6 +306,15 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
       setMessages((prev) => [...prev, payload]);
     });
 
+    channel.on(
+      "broadcast",
+      { event: "reaction" },
+      ({ payload }: { payload: { messageId: string; emoji: string; userId: string; userName: string } }) => {
+        if (payload.userId === currentUser.id) return; // already applied optimistically
+        toggleReaction(payload.messageId, payload.emoji, payload.userId, payload.userName);
+      }
+    );
+
     // Teacher ended the stream — send viewers back to the class page.
     channel.on("broadcast", { event: "ended" }, () => {
       if (!isTeacher) router.push(`/dashboard/classes/${classId}`);
@@ -367,6 +377,22 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, session.id]);
+
+  // Applied both locally (optimistic, on the reactor's own click) and from
+  // the "reaction" broadcast (everyone else). One reaction per user per
+  // message, same as the group chat: re-picking the same emoji removes it,
+  // picking a different one replaces whatever they had.
+  function toggleReaction(messageId: string, emoji: string, userId: string, userName: string) {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const existing = m.reactions ?? [];
+        const hadSame = existing.some((r) => r.userId === userId && r.emoji === emoji);
+        const withoutMine = existing.filter((r) => r.userId !== userId);
+        return { ...m, reactions: hadSame ? withoutMine : [...withoutMine, { emoji, userId, userName }] };
+      })
+    );
+  }
 
   function toggleMic() {
     const track = localStreamRef.current?.getAudioTracks()[0];
@@ -456,10 +482,21 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
       senderRole: currentUser.role,
       text,
       at: Date.now(),
+      replyTo: replyTo ? { id: replyTo.id, senderName: replyTo.senderName, text: replyTo.text } : undefined,
     };
     channelRef.current?.send({ type: "broadcast", event: "chat", payload: msg });
     setMessages((prev) => [...prev, msg]);
     setChatInput("");
+    setReplyTo(null);
+  }
+
+  function reactToChat(messageId: string, emoji: string) {
+    toggleReaction(messageId, emoji, currentUser.id, currentUser.name);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "reaction",
+      payload: { messageId, emoji, userId: currentUser.id, userName: currentUser.name },
+    });
   }
 
   async function endStream() {
@@ -648,6 +685,10 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
             onSubmit={sendChat}
             onClose={() => setChatOpen(false)}
             endRef={messagesEndRef}
+            onReact={reactToChat}
+            replyTo={replyTo}
+            onReply={setReplyTo}
+            onCancelReply={() => setReplyTo(null)}
           />
         )}
     </div>

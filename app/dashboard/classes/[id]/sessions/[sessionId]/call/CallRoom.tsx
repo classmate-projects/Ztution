@@ -134,6 +134,7 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [messages, setMessages] = useState<CallMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [replyTo, setReplyTo] = useState<CallMessage | null>(null);
 
   // Teacher-only moderation state.
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
@@ -189,6 +190,22 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
       next.set(id, { ...existing, repaintNonce: existing.repaintNonce + 1 });
       return next;
     });
+  }
+
+  // Applied both locally (optimistic, on the reactor's own click) and from
+  // the "reaction" broadcast (everyone else). One reaction per user per
+  // message, same as the group chat: re-picking the same emoji removes it,
+  // picking a different one replaces whatever they had.
+  function toggleReaction(messageId: string, emoji: string, userId: string, userName: string) {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const existing = m.reactions ?? [];
+        const hadSame = existing.some((r) => r.userId === userId && r.emoji === emoji);
+        const withoutMine = existing.filter((r) => r.userId !== userId);
+        return { ...m, reactions: hadSame ? withoutMine : [...withoutMine, { emoji, userId, userName }] };
+      })
+    );
   }
 
   const sendSignal = useCallback(
@@ -337,6 +354,15 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
       channel.on("broadcast", { event: "chat" }, ({ payload }: { payload: CallMessage }) => {
         setMessages((prev) => [...prev, payload]);
       });
+
+      channel.on(
+        "broadcast",
+        { event: "reaction" },
+        ({ payload }: { payload: { messageId: string; emoji: string; userId: string; userName: string } }) => {
+          if (payload.userId === currentUser.id) return; // already applied optimistically
+          toggleReaction(payload.messageId, payload.emoji, payload.userId, payload.userName);
+        }
+      );
 
       // A peer swapped their outgoing video (camera ↔ screen share) without
       // renegotiating — same receiver track, new content. Force a repaint so
@@ -599,10 +625,21 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
       senderRole: currentUser.role,
       text,
       at: Date.now(),
+      replyTo: replyTo ? { id: replyTo.id, senderName: replyTo.senderName, text: replyTo.text } : undefined,
     };
     channelRef.current?.send({ type: "broadcast", event: "chat", payload: msg });
     setMessages((prev) => [...prev, msg]);
     setChatInput("");
+    setReplyTo(null);
+  }
+
+  function reactToComment(messageId: string, emoji: string) {
+    toggleReaction(messageId, emoji, currentUser.id, currentUser.name);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "reaction",
+      payload: { messageId, emoji, userId: currentUser.id, userName: currentUser.name },
+    });
   }
 
   function leaveCall() {
@@ -926,6 +963,10 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
             onSubmit={sendComment}
             onClose={() => setCommentsOpen(false)}
             endRef={messagesEndRef}
+            onReact={reactToComment}
+            replyTo={replyTo}
+            onReply={setReplyTo}
+            onCancelReply={() => setReplyTo(null)}
           />
         )}
       </div>
