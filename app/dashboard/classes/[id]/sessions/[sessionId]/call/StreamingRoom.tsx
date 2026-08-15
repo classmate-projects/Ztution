@@ -1,12 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { callChannelName, ICE_SERVERS } from "@/lib/webrtc-config";
 import { Button, ErrorBanner } from "@/components/ui";
-import { initials } from "@/lib/format";
+import {
+  CAM_OFF_ICON,
+  CAM_ON_ICON,
+  CHAT_ICON,
+  ControlButton,
+  EYE_ICON,
+  FS_ENTER_ICON,
+  FS_EXIT_ICON,
+  HangupButton,
+  MIC_OFF_ICON,
+  MIC_ON_ICON,
+  MessagePanel,
+  PEOPLE_ICON,
+  Placeholder,
+  SCREEN_SHARE_ICON,
+  ToggleButton,
+  useAutoHideControls,
+  type CallMessage,
+} from "@/components/call-ui";
 import type { ClassSessionRow, Role } from "@/lib/supabase/types";
 
 interface CurrentUser {
@@ -31,90 +49,10 @@ interface PresenceMeta {
   videoOn?: boolean;
 }
 
-interface ChatMessage {
-  id: string;
-  senderId: string;
-  senderName: string;
-  senderRole: Role;
-  text: string;
-  at: number;
-}
-
 type SignalPayload =
   | { type: "offer"; from: string; to: string; data: RTCSessionDescriptionInit }
   | { type: "answer"; from: string; to: string; data: RTCSessionDescriptionInit }
   | { type: "ice-candidate"; from: string; to: string; data: RTCIceCandidateInit };
-
-const MIC_ON_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <rect x="9" y="3" width="6" height="11" rx="3" />
-    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
-  </svg>
-);
-
-const MIC_OFF_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <path d="M9 9v-3a3 3 0 0 1 5.5-1.7M15 11.5V11" strokeLinecap="round" />
-    <path d="M5 11a7 7 0 0 0 10.6 6M19 11a7 7 0 0 1-1 3.6M12 18v3" strokeLinecap="round" />
-    <path d="M4 4l16 16" strokeLinecap="round" />
-  </svg>
-);
-
-const CAM_ON_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <rect x="3" y="6" width="12" height="12" rx="2" />
-    <path d="M15 10.5 21 7v10l-6-3.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const CAM_OFF_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <path d="M15 10.5 21 7v10l-6-3.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M3 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-.3 1M11 18H5a2 2 0 0 1-2-2V8" strokeLinecap="round" />
-    <path d="M4 4l16 16" strokeLinecap="round" />
-  </svg>
-);
-
-const CHAT_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
-  </svg>
-);
-
-const SCREEN_SHARE_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-5 w-5">
-    <rect x="3" y="4" width="18" height="12" rx="2" />
-    <path d="M8 20h8M12 16v4" strokeLinecap="round" />
-    <path d="M12 12V7m0 0-2 2m2-2 2 2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const FS_ENTER_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <path
-      d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const FS_EXIT_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <path
-      d="M9 4v4a1 1 0 0 1-1 1H4M15 4v4a1 1 0 0 0 1 1h4M9 20v-4a1 1 0 0 0-1-1H4M15 20v-4a1 1 0 0 1 1-1h4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const LEAVE_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-    <path d="M15 12H4M4 12l4-4M4 12l4 4" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 4h9a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-9" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 
 export function StreamingRoom({ classId, classNameLabel, session, currentUser }: Props) {
   const router = useRouter();
@@ -145,9 +83,12 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   const [participants, setParticipants] = useState<PresenceMeta[]>([]);
 
   const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<CallMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const controlsActive = useAutoHideControls(stageRef);
+  const controlsVisible = controlsActive || chatOpen;
 
   const active = isTeacher ? phase === "live" : true;
 
@@ -360,7 +301,7 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
       void handleSignal(payload);
     });
 
-    channel.on("broadcast", { event: "chat" }, ({ payload }: { payload: ChatMessage }) => {
+    channel.on("broadcast", { event: "chat" }, ({ payload }: { payload: CallMessage }) => {
       setMessages((prev) => [...prev, payload]);
     });
 
@@ -508,7 +449,7 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
     event.preventDefault();
     const text = chatInput.trim();
     if (!text) return;
-    const msg: ChatMessage = {
+    const msg: CallMessage = {
       id: crypto.randomUUID(),
       senderId: currentUser.id,
       senderName: currentUser.name,
@@ -542,7 +483,7 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   // ---- Teacher lobby -------------------------------------------------------
   if (isTeacher && phase === "lobby") {
     return (
-      <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-6 p-6">
         <div>
           <h1 className="text-xl font-semibold">{session.title}</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{classNameLabel} · Streaming</p>
@@ -597,16 +538,16 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   const videoFit = isFullscreen ? "object-contain" : "object-cover";
 
   return (
-    <div className="flex flex-col gap-4">
-      <ErrorBanner message={connectionError} />
+    <div ref={stageRef} className="relative h-full w-full overflow-hidden bg-zinc-900">
+      {connectionError && (
+        <div className="pointer-events-none absolute inset-x-0 top-16 z-20 flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-md">
+            <ErrorBanner message={connectionError} />
+          </div>
+        </div>
+      )}
 
-      <div
-        ref={stageRef}
-        className={`relative overflow-hidden bg-zinc-900 ${
-          isFullscreen ? "h-screen w-screen" : "aspect-video w-full rounded-2xl"
-        }`}
-      >
-        {isTeacher ? (
+      {isTeacher ? (
           <>
             <video
               ref={localVideoRef}
@@ -635,31 +576,36 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
           </div>
         )}
 
-        {/* Header overlay — title on the left, live tag + count on the right.
+        {/* Header overlay — title + count on the left, live tag on the right.
             Hidden in fullscreen so nothing sits over the video. */}
         {!isFullscreen && (
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 bg-gradient-to-b from-black/60 to-transparent p-4">
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold text-white">{session.title}</h1>
-              <p className="truncate text-xs text-white/70">{classNameLabel} · Streaming</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/90 px-2.5 py-1 text-xs font-medium text-white">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                Live
-              </span>
-              <span className="rounded-full bg-black/50 px-2.5 py-1 text-xs font-medium text-white">
-                {isTeacher
-                  ? `${viewerCount} watching`
-                  : `${viewerCount} in room`}
+              <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-xs font-medium text-white">
+                {isTeacher ? EYE_ICON : PEOPLE_ICON}
+                {viewerCount}
               </span>
             </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-500/90 px-2.5 py-1 text-xs font-medium text-white">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              Live
+            </span>
           </div>
         )}
 
-        {/* Controls overlay — lives inside the stage so it shows in fullscreen. */}
-        <div className="absolute inset-x-0 bottom-0 flex justify-center p-4">
-          <div className="flex items-center gap-2 rounded-full bg-black/50 px-3 py-2 backdrop-blur-sm">
+        {/* Controls overlay — lives inside the stage so it shows in fullscreen.
+            Fades out after a few seconds of no mouse/keyboard activity. */}
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 transition-opacity duration-300 ${
+            controlsVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div
+            className={`flex items-center gap-2.5 rounded-full bg-black/50 px-4 py-3 backdrop-blur-sm ${
+              controlsVisible ? "pointer-events-auto" : "pointer-events-none"
+            }`}
+          >
             {isTeacher && (
               <>
                 <ControlButton active={micOn} onClick={toggleMic} label={micOn ? "Mute" : "Unmute"}>
@@ -692,7 +638,9 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
         </div>
 
         {chatOpen && (
-          <ChatPanel
+          <MessagePanel
+            title="In-call messages"
+            placeholder="Send a message to everyone"
             messages={messages}
             currentUserId={currentUser.id}
             value={chatInput}
@@ -702,170 +650,6 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
             endRef={messagesEndRef}
           />
         )}
-      </div>
     </div>
-  );
-}
-
-function Placeholder({ name, caption }: { name: string; caption: string }) {
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-zinc-800 to-zinc-950 text-white">
-      <span className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-3xl font-semibold shadow-lg ring-4 ring-white/10">
-        {initials(name)}
-      </span>
-      <div className="flex flex-col items-center gap-2">
-        <span className="text-base font-medium">{name}</span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80 backdrop-blur-sm">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
-            <path d="M15 10.5 21 7v10l-6-3.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M3 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-.3 1M11 18H5a2 2 0 0 1-2-2V8" strokeLinecap="round" />
-            <path d="M4 4l16 16" strokeLinecap="round" />
-          </svg>
-          {caption}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** Mic/camera style: neutral when on, red when off (muted). */
-function ControlButton({
-  active,
-  onClick,
-  label,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-colors ${
-        active
-          ? "bg-white/90 text-zinc-800 hover:bg-white"
-          : "bg-red-500 text-white hover:bg-red-600"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** Toggle style (chat / screen share / fullscreen): highlighted when on. */
-function ToggleButton({
-  on,
-  onClick,
-  label,
-  children,
-}: {
-  on: boolean;
-  onClick: () => void;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-colors ${
-        on ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-white/15 text-white hover:bg-white/25"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function HangupButton({ onClick, label, disabled }: { onClick: () => void; label: string; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      className="inline-flex h-11 items-center gap-2 rounded-full bg-red-600 px-4 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {LEAVE_ICON}
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  );
-}
-
-function ChatPanel({
-  messages,
-  currentUserId,
-  value,
-  onChange,
-  onSubmit,
-  onClose,
-  endRef,
-}: {
-  messages: ChatMessage[];
-  currentUserId: string;
-  value: string;
-  onChange: (v: string) => void;
-  onSubmit: (e: FormEvent) => void;
-  onClose: () => void;
-  endRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <aside className="absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">
-        <span className="text-sm font-medium">In-call messages</span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close chat"
-          title="Close chat"
-          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-100"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
-            <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {messages.length === 0 ? (
-          <p className="text-sm text-zinc-400 dark:text-zinc-500">No messages yet.</p>
-        ) : (
-          messages.map((m) => (
-            <div key={m.id} className="text-sm">
-              <span
-                className={`font-medium ${
-                  m.senderId === currentUserId
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-zinc-700 dark:text-zinc-200"
-                }`}
-              >
-                {m.senderId === currentUserId ? "You" : m.senderName}
-                {m.senderRole === "teacher" ? " (Teacher)" : ""}
-              </span>
-              <span className="ml-2 break-words text-zinc-600 dark:text-zinc-300">{m.text}</span>
-            </div>
-          ))
-        )}
-        <div ref={endRef} />
-      </div>
-      <form onSubmit={onSubmit} className="flex gap-2 border-t border-zinc-200 p-3 dark:border-white/10">
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Send a message to everyone"
-          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-        />
-        <Button type="submit" disabled={!value.trim()}>
-          Send
-        </Button>
-      </form>
-    </aside>
   );
 }

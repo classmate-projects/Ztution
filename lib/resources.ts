@@ -112,6 +112,19 @@ export async function listChatGroupsWithUnread(
   );
 }
 
+/** True if the teacher removed this student from this call session and hasn't re-admitted them yet. */
+export async function isRemovedFromSession(sessionId: string, studentId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("session_removed_students")
+    .select("readmitted_at")
+    .eq("session_id", sessionId)
+    .eq("student_id", studentId)
+    .is("readmitted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 export async function getAssignmentOrThrow(assignmentId: string): Promise<AssignmentRow> {
   const { data, error } = await supabaseAdmin
     .from("assignments")
