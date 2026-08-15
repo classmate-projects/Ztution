@@ -311,6 +311,10 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
         return;
       }
       const session = body.data.session as ClassSessionRow;
+      // Postgres Changes is the primary path for other viewers picking this
+      // up, but it's best-effort (see realtime-class.tsx) — this broadcast
+      // is the reliable fallback, same as the chat-group-creation flow.
+      void broadcastClassRefresh(classId);
       router.push(`/dashboard/classes/${classId}/sessions/${session.id}/call`);
     } catch {
       setError("Network error — please try again");
@@ -334,6 +338,7 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
         setError(body.message ?? "Something went wrong");
         return;
       }
+      void broadcastClassRefresh(classId);
       router.refresh();
     } finally {
       setActioningId(null);
@@ -425,6 +430,14 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
                       End
                     </Button>
                   </>
+                )}
+                {session.status === "ended" && (
+                  <Link
+                    href={`/dashboard/classes/${classId}/sessions/${session.id}/summary`}
+                    className={buttonClasses("secondary")}
+                  >
+                    View Summary
+                  </Link>
                 )}
               </div>
             </Card>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { recordAttendanceJoin, recordAttendanceLeave } from "@/lib/attendance-client";
 import { callChannelName, ICE_SERVERS } from "@/lib/webrtc-config";
 import { Button, ErrorBanner } from "@/components/ui";
 import {
@@ -11,6 +12,7 @@ import {
   CAM_ON_ICON,
   CHAT_ICON,
   ControlButton,
+  EndedScreen,
   FS_ENTER_ICON,
   FS_EXIT_ICON,
   HangupButton,
@@ -119,6 +121,9 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
   // waiting-room effect below); this is the separate subscription they use
   // to ask for — and hear back about — re-admission.
   const waitingChannelRef = useRef<RealtimeChannel | null>(null);
+  // Student-only: id of the open session_attendance row for the current
+  // join segment, used for the post-call summary report.
+  const attendanceIdRef = useRef<string | null>(null);
 
   const [peers, setPeers] = useState<Map<string, Peer>>(new Map());
   const [micOn, setMicOn] = useState(true);
@@ -146,6 +151,11 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
   // a removal that's still in effect.
   const [kickedOut, setKickedOut] = useState(initiallyRemoved ?? false);
   const [rejoinState, setRejoinState] = useState<"idle" | "pending" | "declined">("idle");
+
+  // Teacher-only: set once they end the call, so they see a "view summary"
+  // screen instead of being bounced straight back to the class page.
+  const [ended, setEnded] = useState(false);
+  const [ending, setEnding] = useState(false);
 
   useEffect(() => {
     removedIdsRef.current = removedIds;
@@ -302,8 +312,15 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
 
       localStreamRef.current = stream;
       setLocalDisplayStream(stream);
-      setMicOn(Boolean(stream?.getAudioTracks().length));
-      setCamOn(Boolean(stream?.getVideoTracks().length));
+      // Students join with mic and camera off by default — a courtesy
+      // default for a room with many participants; they can turn either on
+      // from the control bar. The teacher is unaffected.
+      if (!isTeacher) {
+        stream?.getAudioTracks().forEach((t) => (t.enabled = false));
+        stream?.getVideoTracks().forEach((t) => (t.enabled = false));
+      }
+      setMicOn(isTeacher && Boolean(stream?.getAudioTracks().length));
+      setCamOn(isTeacher && Boolean(stream?.getVideoTracks().length));
 
       let supabase: ReturnType<typeof createBrowserSupabaseClient>;
       try {
@@ -370,6 +387,11 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
       channel.on("broadcast", { event: "source-changed" }, ({ payload }: { payload: { from: string } }) => {
         if (payload.from === currentUser.id) return;
         bumpPeerRepaint(payload.from);
+      });
+
+      // Teacher ended the call — send everyone else back to the class page.
+      channel.on("broadcast", { event: "ended" }, () => {
+        if (!isTeacher) router.push(`/dashboard/classes/${classId}`);
       });
 
       function syncPresence() {
@@ -461,6 +483,10 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
         if (subStatus === "SUBSCRIBED") {
           setConnectionError(null);
           await channel.track(presencePayload());
+          if (!isTeacher) {
+            const attendanceId = await recordAttendanceJoin(classId, session.id);
+            if (!cancelled) attendanceIdRef.current = attendanceId;
+          }
         } else if (subStatus === "CHANNEL_ERROR" || subStatus === "TIMED_OUT" || subStatus === "CLOSED") {
           setConnectionError("Lost connection to the call's signaling channel. Try leaving and rejoining.");
         }
@@ -481,6 +507,13 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
         channelRef.current = null;
       }
       syncPresenceRef.current = null;
+      // This join segment is over — whether from a real leave, a kick, or an
+      // in-app navigation. Rejoining later (e.g. after being re-admitted)
+      // starts a fresh segment via the SUBSCRIBED handler above.
+      if (attendanceIdRef.current) {
+        recordAttendanceLeave(classId, session.id, attendanceIdRef.current);
+        attendanceIdRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id, kickedOut]);
@@ -542,6 +575,20 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, commentsOpen]);
+
+  // Safety net for actual tab close/refresh, where the main effect's cleanup
+  // may not get a chance to run its async work — sendBeacon is the one thing
+  // reliably delivered during unload.
+  useEffect(() => {
+    function onPageHide() {
+      if (attendanceIdRef.current) {
+        recordAttendanceLeave(classId, session.id, attendanceIdRef.current);
+        attendanceIdRef.current = null;
+      }
+    }
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [classId, session.id]);
 
   function toggleMic() {
     const track = localStreamRef.current?.getAudioTracks()[0];
@@ -644,6 +691,21 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
 
   function leaveCall() {
     router.push(`/dashboard/classes/${classId}`);
+  }
+
+  async function endCall() {
+    setEnding(true);
+    channelRef.current?.send({ type: "broadcast", event: "ended", payload: {} });
+    try {
+      await fetch(`/api/classes/${classId}/sessions/${session.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "end" }),
+      });
+    } finally {
+      setEnding(false);
+      setEnded(true);
+    }
   }
 
   // ---- Teacher moderation ------------------------------------------------
@@ -787,6 +849,15 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
           Leave
         </Button>
       </div>
+    );
+  }
+
+  if (ended) {
+    return (
+      <EndedScreen
+        onViewSummary={() => router.push(`/dashboard/classes/${classId}/sessions/${session.id}/summary`)}
+        onBackToClass={leaveCall}
+      />
     );
   }
 
@@ -948,7 +1019,11 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
           <ToggleButton on={isFullscreen} onClick={toggleFullscreen} label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
             {isFullscreen ? FS_EXIT_ICON : FS_ENTER_ICON}
           </ToggleButton>
-          <HangupButton onClick={leaveCall} label="Leave" />
+          {isTeacher ? (
+            <HangupButton onClick={endCall} disabled={ending} label="End call" />
+          ) : (
+            <HangupButton onClick={leaveCall} label="Leave" />
+          )}
         </div>
       </div>
 

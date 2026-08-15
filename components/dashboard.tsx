@@ -56,6 +56,7 @@ interface NotificationItem {
   id: string;
   type: string;
   class_id: string | null;
+  session_id: string | null;
   message: string;
   read_at: string | null;
   created_at: string;
@@ -241,6 +242,17 @@ export function NotificationBell({
                       >
                         Decline
                       </Button>
+                    </div>
+                  )}
+                  {notification.type === "session_live" && notification.class_id && notification.session_id && (
+                    <div className="mt-2">
+                      <Link
+                        href={`/dashboard/classes/${notification.class_id}/sessions/${notification.session_id}/call`}
+                        onClick={() => setOpen(false)}
+                        className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+                      >
+                        Join
+                      </Link>
                     </div>
                   )}
                   {actionError?.id === notification.id && (

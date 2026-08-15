@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { recordAttendanceJoin, recordAttendanceLeave } from "@/lib/attendance-client";
 import { callChannelName, ICE_SERVERS } from "@/lib/webrtc-config";
 import { Button, ErrorBanner } from "@/components/ui";
 import {
@@ -11,6 +12,7 @@ import {
   CAM_ON_ICON,
   CHAT_ICON,
   ControlButton,
+  EndedScreen,
   EYE_ICON,
   FS_ENTER_ICON,
   FS_EXIT_ICON,
@@ -65,6 +67,9 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   const screenStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const channelRef = useRef<RealtimeChannel | null>(null);
+  // Student-only: id of the open session_attendance row for the current
+  // watch segment, used for the post-call summary report.
+  const attendanceIdRef = useRef<string | null>(null);
 
   // Teachers pass through a lobby before broadcasting; students go straight in.
   const [phase, setPhase] = useState<"lobby" | "live">(isTeacher ? "lobby" : "live");
@@ -75,6 +80,9 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
+  // Teacher-only: set once they end the stream, so they see a "view summary"
+  // screen instead of being bounced straight back to the class page.
+  const [ended, setEnded] = useState(false);
 
   const [teacherStream, setTeacherStream] = useState<MediaStream | null>(null);
   const [teacherLive, setTeacherLive] = useState(false);
@@ -183,6 +191,20 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatOpen]);
+
+  // Safety net for actual tab close/refresh, where the main effect's cleanup
+  // may not get a chance to run its async work — sendBeacon is the one thing
+  // reliably delivered during unload.
+  useEffect(() => {
+    function onPageHide() {
+      if (attendanceIdRef.current) {
+        recordAttendanceLeave(classId, session.id, attendanceIdRef.current);
+        attendanceIdRef.current = null;
+      }
+    }
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [classId, session.id]);
 
   // Track real (OS-level) fullscreen so the button icon and layout stay in sync
   // even when the user exits with Esc.
@@ -363,6 +385,10 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
       if (status === "SUBSCRIBED") {
         setConnectionError(null);
         await channel.track(presencePayload());
+        if (!isTeacher) {
+          const attendanceId = await recordAttendanceJoin(classId, session.id);
+          attendanceIdRef.current = attendanceId;
+        }
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         setConnectionError("Lost connection to the stream. Try leaving and rejoining.");
       }
@@ -374,6 +400,10 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
       channel.untrack();
       supabase.removeChannel(channel);
       channelRef.current = null;
+      if (attendanceIdRef.current) {
+        recordAttendanceLeave(classId, session.id, attendanceIdRef.current);
+        attendanceIdRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, session.id]);
@@ -509,7 +539,8 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
         body: JSON.stringify({ action: "end" }),
       });
     } finally {
-      router.push(`/dashboard/classes/${classId}`);
+      setEnding(false);
+      setEnded(true);
     }
   }
 
@@ -564,6 +595,15 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (ended) {
+    return (
+      <EndedScreen
+        onViewSummary={() => router.push(`/dashboard/classes/${classId}/sessions/${session.id}/summary`)}
+        onBackToClass={leave}
+      />
     );
   }
 

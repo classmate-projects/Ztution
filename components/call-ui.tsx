@@ -231,6 +231,35 @@ export function ToggleButton({
   );
 }
 
+/** Shown to the teacher in place of the call UI once they end it — offers the attendance/duration report before leaving the page. */
+export function EndedScreen({
+  onViewSummary,
+  onBackToClass,
+}: {
+  onViewSummary: () => void;
+  onBackToClass: () => void;
+}) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-zinc-950 p-6 text-center text-white">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-7 w-7">
+          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <p className="text-lg font-semibold">Call ended</p>
+      <p className="max-w-sm text-sm text-white/60">
+        You can view a summary of who attended and for how long.
+      </p>
+      <div className="flex gap-3">
+        <Button variant="ghost" onClick={onBackToClass}>
+          Back to class
+        </Button>
+        <Button onClick={onViewSummary}>View summary</Button>
+      </div>
+    </div>
+  );
+}
+
 export function HangupButton({ onClick, label, disabled }: { onClick: () => void; label: string; disabled?: boolean }) {
   return (
     <button

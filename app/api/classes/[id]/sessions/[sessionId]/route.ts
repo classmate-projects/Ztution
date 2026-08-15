@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { authenticate, requirePermission, NotFoundError, ValidationError } from "@/lib/authorize";
-import { assertOwnsClass, getClassOrThrow } from "@/lib/resources";
+import { assertOwnsClass, getClassOrThrow, notifySessionLive } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { readJsonBody, optionalEnum } from "@/lib/validate";
 import type { SessionMode, SessionStatus } from "@/lib/supabase/types";
@@ -60,6 +60,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       .select("*")
       .single();
     if (error) throw error;
+
+    if (action === "start") {
+      await notifySessionLive(id, klass.name, { id: data.id, title: data.title }, user.userId);
+    }
 
     return apiSuccess(action === "start" ? "Class started" : "Class ended", { session: data });
   } catch (error) {

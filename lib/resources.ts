@@ -112,6 +112,42 @@ export async function listChatGroupsWithUnread(
   );
 }
 
+/**
+ * Notifies every actively-enrolled student that a session just went live, with
+ * a direct link to the call (see components/dashboard.tsx NotificationBell).
+ * Best-effort — a failure here shouldn't fail the start action itself.
+ */
+export async function notifySessionLive(
+  classId: string,
+  className: string,
+  session: { id: string; title: string },
+  actorId: string
+): Promise<void> {
+  try {
+    const { data: students, error } = await supabaseAdmin
+      .from("class_students")
+      .select("student_id")
+      .eq("class_id", classId)
+      .eq("status", "active");
+    if (error) throw error;
+    if (!students || students.length === 0) return;
+
+    const { error: notifyError } = await supabaseAdmin.from("notifications").insert(
+      students.map((s) => ({
+        user_id: s.student_id,
+        type: "session_live",
+        class_id: classId,
+        session_id: session.id,
+        actor_id: actorId,
+        message: `${className}: ${session.title} is live now`,
+      }))
+    );
+    if (notifyError) throw notifyError;
+  } catch (err) {
+    console.error("Failed to create session-live notifications", err);
+  }
+}
+
 /** True if the teacher removed this student from this call session and hasn't re-admitted them yet. */
 export async function isRemovedFromSession(sessionId: string, studentId: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
