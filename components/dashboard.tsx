@@ -198,18 +198,23 @@ export function NotificationBell({
         onClick={handleToggle}
         aria-haspopup="true"
         aria-expanded={open}
-        className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-zinc-600 transition-colors active:scale-95 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/10"
+        className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-zinc-600 outline-none transition-colors active:scale-95 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-zinc-400 dark:hover:bg-white/10"
       >
         {BELL_ICON}
-        {unreadCount > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500" />}
+        {unreadCount > 0 && (
+          <span className="absolute right-1.5 top-1.5 flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+          </span>
+        )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-80 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/10 dark:border-white/10 dark:bg-zinc-900">
+        <div className="animate-scale-in absolute right-0 top-full z-20 mt-2 w-80 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl shadow-zinc-900/10 dark:border-white/10 dark:bg-zinc-900">
           <div className="border-b border-zinc-100 px-4 py-3 text-sm font-medium text-zinc-900 dark:border-white/10 dark:text-zinc-100">
             Notifications
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="thin-scrollbar max-h-80 overflow-y-auto">
             {loading && !notifications ? (
               <p className="px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
             ) : !notifications?.length ? (
@@ -218,7 +223,7 @@ export function NotificationBell({
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className="border-b border-zinc-100 px-4 py-3 last:border-b-0 dark:border-white/10"
+                  className="border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-white/10 dark:hover:bg-white/[0.03]"
                 >
                   <p className="text-sm text-zinc-700 dark:text-zinc-300">{notification.message}</p>
                   <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
@@ -306,13 +311,13 @@ export function UserMenu({ name, role }: { name: string; role: Role }) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
-        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white transition-transform active:scale-95 dark:bg-indigo-500"
+        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white shadow-sm shadow-indigo-600/30 outline-none transition-all active:scale-95 hover:shadow-md hover:shadow-indigo-600/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:bg-indigo-500"
       >
         {initials(name)}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-60 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/10 dark:border-white/10 dark:bg-zinc-900">
+        <div className="animate-scale-in absolute right-0 top-full z-20 mt-2 w-60 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl shadow-zinc-900/10 dark:border-white/10 dark:bg-zinc-900">
           <div className="border-b border-zinc-100 px-4 py-3 dark:border-white/10">
             <div className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{name}</div>
             <div className="mt-0.5 text-xs font-medium capitalize text-zinc-500 dark:text-zinc-400">{role}</div>
@@ -334,9 +339,9 @@ export function UserMenu({ name, role }: { name: string; role: Role }) {
                   key={option}
                   type="button"
                   onClick={() => setTheme(option)}
-                  className={`flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  className={`flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-xs font-medium capitalize outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${
                     theme === option
-                      ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                      ? "bg-indigo-600 text-white shadow-sm dark:bg-indigo-500"
                       : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/10"
                   }`}
                 >

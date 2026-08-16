@@ -77,13 +77,19 @@ export default async function Home() {
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-6 py-20 text-center sm:py-28">
-        <span className="animate-fade-in-up mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-medium text-slate-300">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <span className="animate-fade-in-up mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-medium text-slate-300 shadow-sm shadow-black/20">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          </span>
           Built for teachers &amp; students
         </span>
         <h1 className="animate-fade-in-up max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
           One place for lectures, materials, and{" "}
-          <span className="text-indigo-400">every class</span> you teach or attend.
+          <span className="bg-gradient-to-r from-indigo-400 to-sky-400 bg-clip-text text-transparent">
+            every class
+          </span>{" "}
+          you teach or attend.
         </h1>
         <p className="animate-fade-in-up mt-6 max-w-xl text-lg text-slate-400">
           Ztution gives teachers a simple way to run classes and share study materials, and gives
@@ -101,9 +107,13 @@ export default async function Home() {
         </div>
 
         <div className="mt-24 grid w-full gap-4 text-left sm:grid-cols-3">
-          {FEATURES.map((feature) => (
-            <MarketingCard key={feature.title} className="animate-fade-in-up">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+          {FEATURES.map((feature, index) => (
+            <MarketingCard
+              key={feature.title}
+              className="animate-fade-in-up group"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 transition-colors duration-200 group-hover:bg-indigo-500/20">
                 {feature.icon}
               </span>
               <h2 className="mt-4 text-base font-semibold text-white">{feature.title}</h2>
@@ -114,18 +124,32 @@ export default async function Home() {
 
         <div className="mt-28 w-full">
           <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">How it works</h2>
-          <div className="mt-10 grid w-full gap-8 text-left sm:grid-cols-3">
-            {STEPS.map((item) => (
-              <div key={item.step} className="animate-fade-in-up">
-                <span className="text-sm font-semibold text-indigo-400">{item.step}</span>
-                <h3 className="mt-2 text-base font-semibold text-white">{item.title}</h3>
+          <div className="relative mt-10 grid w-full gap-8 text-left sm:grid-cols-3">
+            <div className="absolute top-5 left-0 hidden h-px w-full bg-gradient-to-r from-white/15 via-white/15 to-transparent sm:block" />
+            {STEPS.map((item, index) => (
+              <div
+                key={item.step}
+                className="animate-fade-in-up relative"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <span className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border border-indigo-400/30 bg-zinc-950 text-sm font-semibold text-indigo-400">
+                  {item.step}
+                </span>
+                <h3 className="mt-4 text-base font-semibold text-white">{item.title}</h3>
                 <p className="mt-2 text-sm text-slate-400">{item.description}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="animate-fade-in-up mt-28 flex w-full flex-col items-center gap-5 rounded-2xl border border-white/10 bg-white/[0.03] px-8 py-12">
+        <div className="animate-fade-in-up relative mt-28 flex w-full flex-col items-center gap-5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] px-8 py-12">
+          <div
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              background:
+                "radial-gradient(ellipse 60% 100% at 50% 100%, rgba(99, 102, 241, 0.18), transparent)",
+            }}
+          />
           <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
             Ready to bring your classroom online?
           </h2>

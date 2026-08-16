@@ -52,7 +52,10 @@ export function BillingClient({ active, statusLabel, justSucceeded, justCanceled
       <Card>
         <div className="flex items-center justify-between">
           <span className="text-sm text-zinc-600 dark:text-zinc-400">Status</span>
-          <span className="font-medium capitalize">{statusLabel ?? "No subscription"}</span>
+          <span className="inline-flex items-center gap-2 font-medium capitalize">
+            <span className={`h-2 w-2 rounded-full ${active ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"}`} />
+            {statusLabel ?? "No subscription"}
+          </span>
         </div>
       </Card>
 

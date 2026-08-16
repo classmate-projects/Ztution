@@ -679,7 +679,7 @@ export function StreamingRoom({ classId, classNameLabel, session, currentUser }:
           }`}
         >
           <div
-            className={`flex items-center gap-2.5 rounded-full bg-black/50 px-4 py-3 backdrop-blur-sm ${
+            className={`flex items-center gap-2.5 rounded-full bg-black/50 px-4 py-3 shadow-2xl shadow-black/40 ring-1 ring-white/10 backdrop-blur-md ${
               controlsVisible ? "pointer-events-auto" : "pointer-events-none"
             }`}
           >

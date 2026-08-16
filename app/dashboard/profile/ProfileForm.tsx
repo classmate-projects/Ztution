@@ -2,10 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, ErrorBanner, Field, Input } from "@/components/ui";
+import { Avatar, Button, Card, ErrorBanner, Field, Input } from "@/components/ui";
 import { PasswordInput } from "@/components/password-input";
 import { Toast, useToast } from "@/components/toast";
-import { initials } from "@/lib/format";
 import type { Role } from "@/lib/supabase/types";
 
 interface Props {
@@ -92,9 +91,7 @@ export function ProfileForm({ initialName, initialUsername, email, role }: Props
       {toastMessage && <Toast key={toastKey} message={toastMessage} onClose={hideToast} />}
 
       <div className="flex items-center gap-4">
-        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xl font-semibold text-white dark:bg-indigo-500">
-          {initials(name)}
-        </span>
+        <Avatar name={name} size="lg" />
         <div>
           <div className="text-base font-medium text-zinc-900 dark:text-zinc-100">{name}</div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">{email}</div>

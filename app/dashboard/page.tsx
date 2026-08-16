@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { buttonClasses, Card } from "@/components/ui";
+import { Avatar, buttonClasses, Card, EmptyState } from "@/components/ui";
 import { ClassTile } from "@/components/dashboard";
-import { formatDate, initials } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import type { ClassRow, EnrollmentStatus } from "@/lib/supabase/types";
 
 interface EnrolledClass {
@@ -52,6 +52,23 @@ const CALENDAR_ICON = (
   </svg>
 );
 
+const CALENDAR_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 9.5h18" />
+    <path d="M8 3v4M16 3v4" />
+  </svg>
+);
+
+const TEACHERS_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <circle cx="8" cy="8" r="3" />
+    <circle cx="16" cy="9" r="2.5" />
+    <path d="M2.5 19c0-3.3 2.6-5.5 5.5-5.5s5.5 2.2 5.5 5.5" />
+    <path d="M14 14c2.6.2 4.5 2.2 4.5 5" />
+  </svg>
+);
+
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/signin");
@@ -74,9 +91,16 @@ export default async function DashboardPage() {
         </div>
         {!typedClasses.length ? (
           <Card>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              You haven&apos;t created any classes yet.
-            </p>
+            <EmptyState
+              icon={CALENDAR_ICON_LG}
+              title="No classes yet"
+              description="Create your first class to start scheduling lectures and sharing materials."
+              action={
+                <Link href="/dashboard/classes/new" className={buttonClasses("primary", "mt-1")}>
+                  + Create Class
+                </Link>
+              }
+            />
           </Card>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -84,7 +108,7 @@ export default async function DashboardPage() {
               const studentCount = klass.class_students[0]?.count ?? 0;
               return (
                 <Link key={klass.id} href={`/dashboard/classes/${klass.id}`}>
-                  <Card className="h-full transition-colors hover:border-zinc-400 dark:hover:border-zinc-600">
+                  <Card hoverable className="h-full">
                     <h2 className="font-medium text-zinc-900 dark:text-zinc-100">{klass.name}</h2>
                     <div className="mt-3 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
                       <span className="inline-flex items-center gap-1.5">
@@ -127,19 +151,19 @@ export default async function DashboardPage() {
       <h1 className="text-xl font-semibold">My Teachers</h1>
       {!teacherGroups.length ? (
         <Card>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            You haven&apos;t been assigned to any classes yet — ask your teacher to add you.
-          </p>
+          <EmptyState
+            icon={TEACHERS_ICON_LG}
+            title="No classes assigned yet"
+            description="Ask your teacher to add you to a class and it'll show up here."
+          />
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {teacherGroups.map((group) => (
             <ClassTile key={group.teacherId} href={`/dashboard/teachers/${group.teacherId}`}>
-              <Card className="h-full transition-colors hover:border-zinc-400 dark:hover:border-zinc-600">
+              <Card hoverable className="h-full">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white dark:bg-indigo-500">
-                    {initials(group.teacherName)}
-                  </span>
+                  <Avatar name={group.teacherName} />
                   <div className="min-w-0">
                     <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">
                       {group.teacherName}

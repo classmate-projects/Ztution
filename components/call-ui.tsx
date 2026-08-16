@@ -193,10 +193,10 @@ export function ControlButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-colors ${
+      className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full shadow-lg outline-none transition-all active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
         active
-          ? "bg-white/90 text-zinc-800 hover:bg-white"
-          : "bg-red-500 text-white hover:bg-red-600"
+          ? "bg-white/90 text-zinc-800 shadow-black/20 hover:bg-white"
+          : "bg-red-500 text-white shadow-red-950/40 hover:bg-red-600"
       }`}
     >
       {children}
@@ -222,8 +222,10 @@ export function ToggleButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-colors ${
-        on ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-white/15 text-white hover:bg-white/25"
+      className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full shadow-lg outline-none transition-all active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+        on
+          ? "bg-indigo-600 text-white shadow-indigo-950/40 hover:bg-indigo-500"
+          : "bg-white/15 text-white shadow-black/20 hover:bg-white/25"
       }`}
     >
       {children}
@@ -268,7 +270,7 @@ export function HangupButton({ onClick, label, disabled }: { onClick: () => void
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="inline-flex h-11 items-center gap-2 rounded-full bg-red-600 px-4 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex h-11 items-center gap-2 rounded-full bg-red-600 px-4 text-sm font-medium text-white shadow-lg shadow-red-950/40 outline-none transition-all active:scale-95 hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60"
     >
       {LEAVE_ICON}
       <span className="hidden sm:inline">{label}</span>
@@ -326,7 +328,7 @@ export function MessagePanel({
   onCancelReply: () => void;
 }) {
   return (
-    <aside className="absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900">
+    <aside className="animate-slide-in-right absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900">
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">
         <span className="text-sm font-medium">{title}</span>
         <button
@@ -401,7 +403,7 @@ export function MessagePanel({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors hover:border-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-600"
         />
         <Button type="submit" disabled={!value.trim()}>
           Send
@@ -592,13 +594,14 @@ function ReactionDetails({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="max-h-[70vh] w-full max-w-xs overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="animate-scale-in max-h-[70vh] w-full max-w-xs overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+        style={{ transformOrigin: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">

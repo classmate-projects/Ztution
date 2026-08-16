@@ -906,7 +906,7 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
             <div
               key={r.id}
               onClick={(e) => e.stopPropagation()}
-              className="w-64 rounded-xl bg-zinc-900/95 p-3 text-sm text-white shadow-2xl ring-1 ring-white/10"
+              className="animate-fade-in-up w-64 rounded-xl bg-zinc-900/95 p-3 text-sm text-white shadow-2xl ring-1 ring-white/10"
             >
               <p className="mb-2.5">{r.name} was removed and wants to rejoin</p>
               <div className="flex gap-2">
@@ -994,7 +994,7 @@ export function CallRoom({ classId, session, currentUser, initiallyRemoved }: Pr
         }`}
       >
         <div
-          className={`flex items-center gap-2.5 rounded-full bg-black/50 px-4 py-3 backdrop-blur-sm ${
+          className={`flex items-center gap-2.5 rounded-full bg-black/50 px-4 py-3 shadow-2xl shadow-black/40 ring-1 ring-white/10 backdrop-blur-md ${
             controlsVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
@@ -1185,7 +1185,7 @@ function TileMenu({
         {MORE_ICON}
       </button>
       {open && (
-        <div className="absolute right-0 top-7 w-40 overflow-hidden rounded-lg bg-zinc-900 py-1 text-sm text-white shadow-2xl ring-1 ring-white/10">
+        <div className="animate-scale-in absolute right-0 top-7 w-40 overflow-hidden rounded-lg bg-zinc-900 py-1 text-sm text-white shadow-2xl ring-1 ring-white/10">
           <button
             type="button"
             onClick={onToggleMic}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNode } from "react";
 import { LogoMark } from "@/components/brand";
 
 /**
@@ -13,13 +13,14 @@ import { LogoMark } from "@/components/brand";
 type Variant = "primary" | "secondary" | "ghost";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-indigo-500 text-white shadow-lg shadow-indigo-950/40 hover:bg-indigo-400",
+  primary:
+    "bg-indigo-500 text-white shadow-lg shadow-indigo-950/40 hover:bg-indigo-400 hover:shadow-indigo-500/25",
   secondary: "border border-white/15 text-white hover:border-white/25 hover:bg-white/5",
-  ghost: "text-slate-300 hover:text-white",
+  ghost: "text-slate-300 hover:text-white hover:bg-white/5",
 };
 
 export const marketingButtonClasses = (variant: Variant = "primary", className = "") =>
-  `inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] ${VARIANT_CLASSES[variant]} ${className}`;
+  `inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium outline-none transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] ${VARIANT_CLASSES[variant]} ${className}`;
 
 export function MarketingButton({
   variant = "primary",
@@ -38,10 +39,19 @@ export function Logo({ className = "" }: { className?: string }) {
   );
 }
 
-export function MarketingCard({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function MarketingCard({
+  children,
+  className = "",
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <div
-      className={`rounded-xl border border-white/10 bg-white/[0.03] p-6 shadow-xl shadow-black/20 backdrop-blur-sm transition-colors hover:border-white/15 ${className}`}
+      style={style}
+      className={`rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-xl shadow-black/20 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.05] hover:shadow-2xl hover:shadow-indigo-950/30 ${className}`}
     >
       {children}
     </div>
@@ -49,7 +59,7 @@ export function MarketingCard({ children, className = "" }: { children: ReactNod
 }
 
 export const fieldInputClasses =
-  "w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-base text-white placeholder:text-slate-500 outline-none transition-colors focus:border-indigo-400 focus:bg-white/[0.07] focus:ring-2 focus:ring-indigo-500/20";
+  "w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-base text-white placeholder:text-slate-500 outline-none transition-colors hover:border-white/20 focus:border-indigo-400 focus:bg-white/[0.07] focus:ring-2 focus:ring-indigo-500/20";
 
 export function MarketingField({
   label,
@@ -91,9 +101,9 @@ export function MarketingRadioCard({
 }) {
   return (
     <label
-      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 text-sm font-medium transition-colors ${
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 text-sm font-medium transition-all duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-indigo-400 ${
         checked
-          ? "border-indigo-400/60 bg-indigo-500/10 text-white"
+          ? "border-indigo-400/60 bg-indigo-500/10 text-white shadow-md shadow-indigo-950/30 ring-1 ring-indigo-400/20"
           : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/[0.07]"
       }`}
     >

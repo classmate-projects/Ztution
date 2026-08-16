@@ -38,7 +38,7 @@ export function Toast({
   return (
     <div className="fixed right-4 top-4 z-50 sm:top-20" role="status" aria-live="polite">
       <div
-        className={`flex w-80 items-center gap-3 rounded-xl border border-zinc-200 bg-white py-3 pl-4 pr-3 shadow-lg shadow-zinc-900/10 transition-all duration-200 ease-out motion-reduce:transition-none dark:border-white/10 dark:bg-zinc-900 ${
+        className={`flex w-80 items-center gap-3 rounded-2xl border border-zinc-200 bg-white py-3 pl-4 pr-3 shadow-xl shadow-zinc-900/10 transition-all duration-200 ease-out motion-reduce:transition-none dark:border-white/10 dark:bg-zinc-900 ${
           visible && !leaving ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"
         }`}
       >
@@ -52,7 +52,7 @@ export function Toast({
           type="button"
           onClick={handleClose}
           aria-label="Dismiss"
-          className="cursor-pointer rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="cursor-pointer rounded-md p-1 text-zinc-400 outline-none transition-colors hover:text-zinc-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:hover:text-zinc-300"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
             <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />

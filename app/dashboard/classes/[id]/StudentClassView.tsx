@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Badge, buttonClasses, Card } from "@/components/ui";
+import { Badge, buttonClasses, Card, EmptyState } from "@/components/ui";
 import { InviteActions } from "@/components/dashboard";
 import { RealtimeClassRefresher } from "@/components/realtime-class";
 import { ChatGroupList, ChatPanel } from "@/components/class-chat";
@@ -59,8 +59,24 @@ const DOWNLOAD_ICON = (
   </svg>
 );
 
+const SESSIONS_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 9.5h18" />
+    <path d="M8 3v4M16 3v4" />
+  </svg>
+);
+
+const MATERIALS_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <path d="M6 2.75h8.5L19 7.25V19.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 19.5v-15A1.75 1.75 0 0 1 6 2.75Z" />
+    <path d="M14 2.75V7a1 1 0 0 0 1 1h4" />
+    <path d="M8 12.5h8M8 16h5" />
+  </svg>
+);
+
 const ICON_BUTTON_CLASSES =
-  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10";
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 outline-none transition-colors hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10";
 
 export function StudentClassView({ klass, sessions, materials, chatGroups, enrollment, currentUserId }: Props) {
   const [view, setView] = useState<ClassNavView>({ kind: "tab", tab: "sessions" });
@@ -100,7 +116,7 @@ export function StudentClassView({ klass, sessions, materials, chatGroups, enrol
         key={tab.id}
         type="button"
         onClick={() => setView({ kind: "tab", tab: tab.id })}
-        className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
+        className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 lg:w-full ${
           active
             ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
             : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
@@ -143,7 +159,7 @@ export function StudentClassView({ klass, sessions, materials, chatGroups, enrol
           <button
             type="button"
             onClick={() => setChatsExpanded((v) => !v)}
-            className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
+            className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 lg:w-full ${
               chatsActive
                 ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
                 : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
@@ -226,9 +242,9 @@ function SessionsPanel({
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-medium">Class Sessions</h2>
       {sessions.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          No sessions scheduled yet — check back later.
-        </p>
+        <Card>
+          <EmptyState icon={SESSIONS_ICON_LG} title="No sessions scheduled yet" description="Check back later — your teacher hasn't started or scheduled a class." />
+        </Card>
       ) : (
         <div className="flex flex-col gap-2">
           {sessions.map((session) => (
@@ -271,7 +287,9 @@ function MaterialsPanel({ materials }: { materials: MaterialRow[] }) {
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-medium">Study Materials</h2>
       {materials.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">No materials shared yet.</p>
+        <Card>
+          <EmptyState icon={MATERIALS_ICON_LG} title="No materials shared yet" description="Anything your teacher uploads will show up here." />
+        </Card>
       ) : (
         <div className="flex flex-col gap-2">
           {materials.map((material) => (

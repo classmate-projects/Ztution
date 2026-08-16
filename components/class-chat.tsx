@@ -178,7 +178,7 @@ export function ChatGroupList({
         <button
           type="button"
           onClick={onNewChat}
-          className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm font-medium text-indigo-600 transition-colors hover:border-indigo-400 hover:bg-indigo-50 dark:border-zinc-700 dark:text-indigo-300 dark:hover:border-indigo-400 dark:hover:bg-indigo-500/10"
+          className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm font-medium text-indigo-600 outline-none transition-colors hover:border-indigo-400 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-zinc-700 dark:text-indigo-300 dark:hover:border-indigo-400 dark:hover:bg-indigo-500/10"
         >
           <span className="text-indigo-500 dark:text-indigo-300">{PLUS_ICON}</span>
           New chat
@@ -263,13 +263,14 @@ export function NewChatDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="animate-scale-in w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+        style={{ transformOrigin: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold">New chat</h3>
@@ -638,7 +639,7 @@ export function ChatPanel({
     // Sized to the space left under the dashboard header + page chrome so the
     // composer is always visible and the *page* never scrolls — only the
     // message list scrolls inside.
-    <div className="relative flex h-[calc(100dvh-12rem)] min-h-[26rem] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+    <div className="relative flex h-[calc(100dvh-12rem)] min-h-[26rem] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm shadow-zinc-900/[0.03] dark:border-white/10 dark:bg-white/[0.03] dark:shadow-black/10">
       <button
         type="button"
         onClick={() => setInfoOpen(true)}
@@ -797,7 +798,7 @@ export function ChatPanel({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10"
+              className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 outline-none transition-colors hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10"
               title="Attach a file"
               aria-label="Attach a file"
             >
@@ -816,12 +817,12 @@ export function ChatPanel({
               }
             }}
             placeholder={editing ? "Edit message…" : "Type a message…"}
-            className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors hover:border-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-600"
           />
           <button
             type="submit"
             disabled={isSending || (!text.trim() && !file && !editing)}
-            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-600/20 outline-none transition-all hover:bg-indigo-500 hover:shadow-md hover:shadow-indigo-600/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400"
             title="Send"
             aria-label="Send message"
           >
@@ -894,13 +895,14 @@ function MessageInfoModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[75vh] w-full max-w-xs flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="animate-scale-in flex max-h-[75vh] w-full max-w-xs flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+        style={{ transformOrigin: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">
@@ -1192,13 +1194,14 @@ function GroupInfoPanel({
 
       {confirmDelete && (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           onClick={() => !isDeleting && setConfirmDelete(false)}
         >
           <div
-            className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+            className="animate-scale-in w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+            style={{ transformOrigin: "center" }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold">Delete this chat?</h3>
@@ -1649,7 +1652,7 @@ function ChatMessageItem({
               </div>
             </div>
 
-            <div className={`rounded-2xl px-3 py-2 text-sm ${bubbleClasses}`}>
+            <div className={`rounded-2xl px-3 py-2 text-sm shadow-sm ${bubbleClasses}`}>
               {/* Quoted reply */}
               {(message.reply_to_sender || message.reply_to_preview) && (
                 <button
@@ -1759,13 +1762,14 @@ function ReactionDetails({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="max-h-[70vh] w-full max-w-xs overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="animate-scale-in max-h-[70vh] w-full max-w-xs overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+        style={{ transformOrigin: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-white/10">

@@ -32,7 +32,7 @@ export function MarketingPasswordInput(props: Omit<InputHTMLAttributes<HTMLInput
         onClick={() => setVisible((v) => !v)}
         tabIndex={-1}
         aria-label={visible ? "Hide password" : "Show password"}
-        className="absolute inset-y-0 right-0 flex cursor-pointer items-center px-3.5 text-slate-500 transition-colors hover:text-slate-300"
+        className="absolute inset-y-0 right-0 flex cursor-pointer items-center px-3.5 text-slate-500 outline-none transition-colors hover:text-slate-300 focus-visible:text-indigo-400"
       >
         {visible ? EYE_ICON : EYE_OFF_ICON}
       </button>

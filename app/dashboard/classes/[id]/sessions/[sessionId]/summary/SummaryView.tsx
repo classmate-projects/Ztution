@@ -118,7 +118,7 @@ export function SummaryView({
                 students.map((s, i) => (
                   <tr
                     key={s.studentId}
-                    className="border-b border-zinc-100 last:border-0 dark:border-white/5"
+                    className="border-b border-zinc-100 transition-colors last:border-0 hover:bg-zinc-50 dark:border-white/5 dark:hover:bg-white/[0.03]"
                   >
                     <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">{i + 1}</td>
                     <td className="px-4 py-3 font-medium">{s.name}</td>

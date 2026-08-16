@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { Card, Badge } from "@/components/ui";
+import { Avatar, Card, Badge } from "@/components/ui";
 import { ClassTile, InviteActions } from "@/components/dashboard";
-import { initials } from "@/lib/format";
 import type { EnrollmentStatus } from "@/lib/supabase/types";
 
 interface TeacherEnrollment {
@@ -51,9 +50,7 @@ export default async function TeacherClassesPage({ params }: Params) {
           &larr; My Teachers
         </Link>
         <div className="mt-3 flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white dark:bg-indigo-500">
-            {initials(teacherName)}
-          </span>
+          <Avatar name={teacherName} />
           <h1 className="text-xl font-semibold">{teacherName}</h1>
         </div>
       </div>
@@ -61,7 +58,7 @@ export default async function TeacherClassesPage({ params }: Params) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {typedEnrollments.map((enrollment) => (
           <ClassTile key={enrollment.classes.id} href={`/dashboard/classes/${enrollment.classes.id}`}>
-            <Card className="h-full transition-colors hover:border-zinc-400 dark:hover:border-zinc-600">
+            <Card hoverable className="h-full">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{enrollment.classes.name}</span>
                 <Badge status={enrollment.status} />

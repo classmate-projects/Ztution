@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Badge, Button, buttonClasses, Card, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
+import { Badge, Button, buttonClasses, Card, EmptyState, ErrorBanner, Field, Input, Textarea } from "@/components/ui";
 import { Toast, useToast } from "@/components/toast";
 import { DateTimePicker } from "@/components/date-time-picker";
 import { RealtimeClassRefresher, broadcastClassRefresh } from "@/components/realtime-class";
@@ -86,11 +86,36 @@ const TRASH_ICON = (
   </svg>
 );
 
+const SESSIONS_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 9.5h18" />
+    <path d="M8 3v4M16 3v4" />
+  </svg>
+);
+
+const STUDENTS_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <circle cx="8" cy="8" r="3" />
+    <circle cx="16" cy="9" r="2.5" />
+    <path d="M2.5 19c0-3.3 2.6-5.5 5.5-5.5s5.5 2.2 5.5 5.5" />
+    <path d="M14 14c2.6.2 4.5 2.2 4.5 5" />
+  </svg>
+);
+
+const MATERIALS_ICON_LG = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-6 w-6">
+    <path d="M6 2.75h8.5L19 7.25V19.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 19.5v-15A1.75 1.75 0 0 1 6 2.75Z" />
+    <path d="M14 2.75V7a1 1 0 0 0 1 1h4" />
+    <path d="M8 12.5h8M8 16h5" />
+  </svg>
+);
+
 const ICON_BUTTON_CLASSES =
-  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10";
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 outline-none transition-colors hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-white/10";
 
 const DELETE_ICON_BUTTON_CLASSES =
-  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400";
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 outline-none transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400";
 
 export function TeacherClassView({ klass, sessions, materials, students, chatGroups, currentUserId }: Props) {
   const router = useRouter();
@@ -115,7 +140,7 @@ export function TeacherClassView({ klass, sessions, materials, students, chatGro
         key={tab.id}
         type="button"
         onClick={() => setView({ kind: "tab", tab: tab.id })}
-        className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:w-full ${
+        className={`flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 lg:w-full ${
           active
             ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
             : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
@@ -392,7 +417,9 @@ function SessionsPanel({ classId, sessions }: { classId: string; sessions: Class
       </Card>
 
       {sessions.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">No sessions yet.</p>
+        <Card>
+          <EmptyState icon={SESSIONS_ICON_LG} title="No sessions yet" description="Start an instant class or schedule one for later." />
+        </Card>
       ) : (
         <div className="flex flex-col gap-2">
           {sessions.map((session) => (
@@ -587,7 +614,9 @@ function StudentsPanel({ classId, students }: { classId: string; students: Stude
       </Card>
 
       {students.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">No students assigned yet.</p>
+        <Card>
+          <EmptyState icon={STUDENTS_ICON_LG} title="No students assigned yet" description="Add students above by their account email." />
+        </Card>
       ) : (
         <div className="flex flex-col gap-2">
           {students.map((enrollment) => (
@@ -800,13 +829,14 @@ function SessionModeDialog({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-8 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="animate-scale-in w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-8 shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+        style={{ transformOrigin: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-center text-2xl font-semibold">How do you want to run this class?</h3>
@@ -821,7 +851,7 @@ function SessionModeDialog({
               type="button"
               disabled={busy}
               onClick={() => onSelect(option.mode)}
-              className="group flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-zinc-200 p-6 text-center transition-colors hover:border-indigo-500 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:hover:border-indigo-400 dark:hover:bg-indigo-500/10"
+              className="group flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-zinc-200 p-6 text-center outline-none transition-all hover:-translate-y-0.5 hover:border-indigo-500 hover:bg-indigo-50 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:border-zinc-700 dark:hover:border-indigo-400 dark:hover:bg-indigo-500/10"
             >
               <span className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-500/15 dark:text-indigo-300 dark:group-hover:bg-indigo-500 dark:group-hover:text-white">
                 {option.icon}
@@ -859,13 +889,14 @@ function ConfirmDialog({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-zinc-900"
+        className="animate-scale-in w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-zinc-900"
+        style={{ transformOrigin: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold">{title}</h3>
@@ -976,7 +1007,9 @@ function MaterialsPanel({ classId, materials }: { classId: string; materials: Ma
       </Card>
 
       {materials.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">No materials uploaded yet.</p>
+        <Card>
+          <EmptyState icon={MATERIALS_ICON_LG} title="No materials uploaded yet" description="Upload slides, notes, or documents for your students." />
+        </Card>
       ) : (
         <div className="flex flex-col gap-2">
           {materials.map((material) => (
