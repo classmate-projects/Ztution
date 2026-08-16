@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiSuccess, toErrorResponse } from "@/lib/api-response";
 import { authenticate, requirePermission } from "@/lib/authorize";
-import { assertEnrolled, assertOwnsClass, getClassOrThrow, getEnrollment } from "@/lib/resources";
+import { assertEnrolled, assertOwnsClass, getClassOrThrow, getEnrollment, notifySessionLive } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { readJsonBody, requireString, optionalEnum } from "@/lib/validate";
 import type { SessionMode } from "@/lib/supabase/types";
@@ -72,6 +72,10 @@ export async function POST(request: NextRequest, { params }: Params) {
       .select("*")
       .single();
     if (error) throw error;
+
+    if (isInstant) {
+      await notifySessionLive(id, klass.name, { id: data.id, title: data.title }, user.userId);
+    }
 
     return apiSuccess(
       isInstant ? "Class started" : "Class scheduled successfully",

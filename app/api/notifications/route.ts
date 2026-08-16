@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const [{ data: notifications, error }, { count: unreadCount, error: countError }] = await Promise.all([
       supabaseAdmin
         .from("notifications")
-        .select("id, type, class_id, message, read_at, created_at")
+        .select("id, type, class_id, session_id, message, read_at, created_at")
         .eq("user_id", user.userId)
         .order("created_at", { ascending: false })
         .limit(20),

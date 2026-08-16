@@ -43,6 +43,15 @@ export interface ClassSessionRow {
   created_at: string;
 }
 
+/** One join/leave segment for a student in a call session — see the post-call summary report. */
+export interface SessionAttendanceRow {
+  id: string;
+  session_id: string;
+  student_id: string;
+  joined_at: string;
+  left_at: string | null;
+}
+
 export interface ClassRow {
   id: string;
   name: string;

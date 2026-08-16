@@ -32,3 +32,16 @@ export function formatFileSize(bytes: number | null): string {
   if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
 }
+
+/** 5025000 -> "1h 23m 45s"; drops leading zero units (e.g. "45s" alone, no "0h 0m 45s"). */
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (hours > 0 || minutes > 0) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  return parts.join(" ");
+}

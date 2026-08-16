@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { getEnrollment } from "@/lib/resources";
+import { getEnrollment, isRemovedFromSession } from "@/lib/resources";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { CallRoom } from "./CallRoom";
 import { StreamingRoom } from "./StreamingRoom";
@@ -39,23 +39,33 @@ export default async function CallPage({ params }: Params) {
 
   const currentUser = { id: auth.userId, name: profile?.name ?? auth.email, role: auth.role };
 
-  if (callSession.mode === "streaming") {
-    return (
-      <StreamingRoom
-        classId={id}
-        classNameLabel={klass.name}
-        session={callSession}
-        currentUser={currentUser}
-      />
-    );
-  }
+  // Checked server-side (not just in the browser's React state) so a student
+  // the teacher removed can't bypass it by simply leaving and rejoining —
+  // the block has to survive a fresh page load.
+  const removed =
+    auth.role === "student" ? await isRemovedFromSession(sessionId, auth.userId) : false;
 
+  // A call should behave like a real conferencing app: take over the whole
+  // browser viewport (like Meet does) instead of living inside the dashboard's
+  // padded, max-width page column — that's what forced a scroll to see it.
   return (
-    <CallRoom
-      classId={id}
-      classNameLabel={klass.name}
-      session={callSession}
-      currentUser={currentUser}
-    />
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-zinc-950">
+      {callSession.mode === "streaming" ? (
+        <StreamingRoom
+          classId={id}
+          classNameLabel={klass.name}
+          session={callSession}
+          currentUser={currentUser}
+        />
+      ) : (
+        <CallRoom
+          classId={id}
+          classNameLabel={klass.name}
+          session={callSession}
+          currentUser={currentUser}
+          initiallyRemoved={removed}
+        />
+      )}
+    </div>
   );
 }
