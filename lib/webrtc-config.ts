@@ -38,6 +38,18 @@ function buildIceServers(): RTCIceServer[] {
 
 export const ICE_SERVERS: RTCIceServer[] = buildIceServers();
 
+// Loud, one-time heads-up in the browser console when no TURN relay is
+// configured — STUN-only ICE quietly fails to connect for a large chunk of
+// real-world networks (this is almost always why a call works on localhost
+// but not once deployed), and there's otherwise no visible error to point at.
+if (typeof window !== "undefined" && ICE_SERVERS.length < 2) {
+  console.warn(
+    "[Ztution] No TURN server configured (NEXT_PUBLIC_TURN_URLS/USERNAME/CREDENTIAL) — " +
+      "calls will only connect when peers can reach each other directly (e.g. localhost, " +
+      "same network). Most real-world networks need a TURN relay; see .env.example."
+  );
+}
+
 export function callChannelName(sessionId: string): string {
   return `call-${sessionId}`;
 }
